@@ -29,6 +29,7 @@ SPEC DO MÓDULO (Fonte da Verdade):
 
 import html
 import re
+import unicodedata
 from collections.abc import Iterable
 from pathlib import Path
 from typing import NamedTuple
@@ -187,9 +188,10 @@ def cartoes(kpi: pd.Series) -> list[Cartao]:
             f"{reais(kpi['valor_glosado_total'])} cortados",
         ),
         Cartao(
-            "Fornecedores recorrentes · 2+",
-            pct(kpi["pct_fornecedores_recorrentes"], casas=2),
-            f"de {_plural(kpi['fornecedores_distintos'], 'fornecedor', 'fornecedores')}",
+            "Uso da cota · % do teto",
+            pct(kpi["pct_teto_utilizado_geral"]),
+            f"{numero(kpi['deputados_acima_90_teto'])} de"
+            f" {_plural(kpi['deputados_com_teto'], 'deputado', 'deputados')} usaram 90% ou mais",
         ),
         Cartao(
             "Fora do CEIS · % do valor",
@@ -265,6 +267,60 @@ def html_cartoes(lista: Iterable[Cartao]) -> str:
         for c in lista
     )
     return f'<section class="cards">\n{blocos}\n</section>'
+
+
+NOTA_TETO = (
+    "% do teto = gasto ÷ (limite mensal da UF × meses entre a primeira e a última despesa do"
+    " deputado), com os limites do Ato da Mesa nº 270/2023, vigentes em todo o ano de 2025."
+    " Pode passar de 100%: até quatro trechos aéreos por mês são reembolsados além da cota, e"
+    " meses sem despesa no início ou no fim do mandato ficam fora da conta. Concentração alta"
+    " em um fornecedor é um ponto de atenção, não indício de irregularidade."
+)
+
+COLUNAS_TABELA_DEPUTADOS: dict[str, str] = {
+    "nome_parlamentar": "Deputado",
+    "partido": "Partido",
+    "uf": "UF",
+    "meses_exercicio": "Meses",
+    "despesa_liquida": "Gasto (R$)",
+    "pct_teto_utilizado": "% do teto",
+    "fornecedores_distintos": "Fornecedores",
+    "maior_fornecedor": "Maior fornecedor",
+    "pct_maior_fornecedor": "% no maior fornecedor",
+    "posicao_maior_gasto": "Posição no gasto",
+}
+
+
+def sem_acento(texto: object) -> str:
+    """Minúsculas sem acentos, para busca por nome tolerante a 'joao' x 'João'."""
+    decomposto = unicodedata.normalize("NFD", str(texto))
+    return "".join(c for c in decomposto if not unicodedata.combining(c)).lower()
+
+
+def tabela_deputados(
+    df: pd.DataFrame,
+    uf: str | None = None,
+    partido: str | None = None,
+    nome: str = "",
+) -> pd.DataFrame:
+    """Faixa 2 · marts.ranking_deputados filtrado, do maior uso do teto ao menor, com rótulos de exibição."""
+    dados = df
+    if uf:
+        dados = dados[dados["uf"] == uf]
+    if partido:
+        dados = dados[dados["partido"] == partido]
+    termo = sem_acento(nome.strip())
+    if termo:
+        mascara = pd.Series(
+            [termo in sem_acento(n) for n in dados["nome_parlamentar"]], index=dados.index, dtype=bool
+        )
+        dados = dados.loc[mascara]
+    return (
+        dados.sort_values(["pct_teto_utilizado", "nome_parlamentar"], ascending=[False, True])
+        .loc[:, list(COLUNAS_TABELA_DEPUTADOS)]
+        .rename(columns=COLUNAS_TABELA_DEPUTADOS)
+        .reset_index(drop=True)
+    )
 
 
 def ler(marts: Iterable[str] = MARTS_PAINEL) -> dict[str, pd.DataFrame]:
@@ -387,14 +443,18 @@ def grafico_gastos_mensais(df: pd.DataFrame) -> go.Figure:
             name="Despesa líquida (R$)",
         )
     )
-    return _aplicar_layout_base(
+    fig = _aplicar_layout_base(
         fig,
         "01 · Evolução mensal da Cota Parlamentar (R$)",
         "Mês de competência",
         "Despesa líquida (R$)",
         margem_esquerda=80,
         subtitulo=subtitulo,
-    ).update_xaxes(tickvals=list(dados["mes"]), ticktext=[_mes_abrev(m) for m in dados["mes"]])
+    )
+    fig.update_xaxes(tickvals=list(dados["mes"]), ticktext=[_mes_abrev(m) for m in dados["mes"]])
+    fig.update_yaxes(rangemode="tozero")
+    fig.update_layout(height=290)
+    return fig
 
 
 def grafico_categorias(df: pd.DataFrame) -> go.Figure:
@@ -429,64 +489,86 @@ def grafico_categorias(df: pd.DataFrame) -> go.Figure:
     )
 
 
+def _marcar_teto(fig: go.Figure, maior_pct: float) -> go.Figure:
+    """Eixo X em % com linha tracejada no teto (100%) sempre visível."""
+    fig.add_vline(x=100, line_dash="dash", line_color=COR_DESTAQUE, line_width=2)
+    fig.update_xaxes(range=[0, max(105.0, float(maior_pct) + 5)], ticksuffix="%")
+    return fig
+
+
+def _subtitulo_mais_menos(ordenado: pd.DataFrame, coluna_nome: str) -> str:
+    """'X usa mais: 95,0% do teto · Y usa menos: 63,5%' a partir de um mart já ordenado."""
+    if ordenado.empty:
+        return ""
+    maior, menor = ordenado.iloc[0], ordenado.iloc[-1]
+    return (
+        f"{maior[coluna_nome]} usa mais: {pct(maior['pct_teto_utilizado'])} do teto"
+        f" · {menor[coluna_nome]} usa menos: {pct(menor['pct_teto_utilizado'])}"
+    )
+
+
 def grafico_partidos(df: pd.DataFrame) -> go.Figure:
-    """10 · Top 10 partidos por despesa líquida (barras horizontais, maior em cima)."""
-    top = df.sort_values("despesa_liquida", ascending=False).head(10).iloc[::-1]
-    subtitulo = ""
-    if not top.empty:
-        lider = top.iloc[-1]
-        subtitulo = (
-            f"{lider['partido']} lidera: {pct(lider['pct_total'])} do total,"
-            f" com {_plural(lider['deputados_ativos'], 'deputado', 'deputados')}"
-        )
+    """10 · Uso do teto da cota nas 10 maiores bancadas (barras horizontais, maior em cima)."""
+    bancadas = (
+        df[df["pct_teto_utilizado"].notna()]
+        .sort_values(["deputados_ativos", "partido"], ascending=[False, True])
+        .head(10)
+    )
+    ordenado = bancadas.sort_values(["pct_teto_utilizado", "partido"], ascending=[False, True])
+    top = ordenado.iloc[::-1]
     fig = go.Figure(
         go.Bar(
-            x=top["despesa_liquida"],
+            x=top["pct_teto_utilizado"],
             y=top["partido"],
-            hovertemplate="<b>Partido %{y}</b><br>Despesa: R$ %{x:,.2f}<extra></extra>",
+            customdata=top[["deputados_ativos", "despesa_liquida"]],
+            hovertemplate=(
+                "<b>%{y}</b><br>Uso do teto: %{x:.1f}%<br>Deputados: %{customdata[0]}"
+                "<br>Despesa: R$ %{customdata[1]:,.2f}<extra></extra>"
+            ),
             orientation="h",
             marker_color=COR_PRINCIPAL,
         )
     )
-    return _aplicar_layout_base(
+    fig = _aplicar_layout_base(
         fig,
-        "10 · Despesa por partido (Top 10 · R$)",
-        "Despesa líquida (R$)",
+        "10 · Uso da cota por partido (% do teto)",
+        "% do teto · 10 maiores bancadas (tracejado = 100%)",
         "",
         margem_esquerda=105,
         barra_horizontal=True,
-        subtitulo=subtitulo,
+        subtitulo=_subtitulo_mais_menos(ordenado, "partido"),
     )
+    return _marcar_teto(fig, ordenado["pct_teto_utilizado"].iloc[0] if not ordenado.empty else 0)
 
 
 def grafico_gasto_uf(df: pd.DataFrame) -> go.Figure:
-    """06 · Top 10 UFs por gasto anual médio por deputado (barras horizontais)."""
-    top = df.sort_values("gasto_medio_deputado", ascending=False).head(10).iloc[::-1]
-    subtitulo = ""
-    if not top.empty:
-        lider = top.iloc[-1]
-        subtitulo = (
-            f"{lider['uf']} lidera: {reais_compacto(lider['gasto_medio_deputado'])}/deputado"
-            f" · teto {reais_compacto(lider['limite_mensal_cota'])}/mês"
-        )
+    """06 · Top 10 UFs pelo uso do teto da cota (gasto ÷ limite mensal × meses de exercício)."""
+    ordenado = df.sort_values(["pct_teto_utilizado", "uf"], ascending=[False, True])
+    top = ordenado.head(10).iloc[::-1]
     fig = go.Figure(
         go.Bar(
-            x=top["gasto_medio_deputado"],
+            x=top["pct_teto_utilizado"],
             y=top["uf"],
-            hovertemplate="<b>UF %{y}</b><br>Gasto médio/dep.: R$ %{x:,.2f}<extra></extra>",
+            customdata=top[["nome_estado", "limite_mensal_cota", "deputados", "deputado_meses"]],
+            hovertemplate=(
+                "<b>%{customdata[0]}</b><br>Uso do teto: %{x:.1f}%"
+                "<br>Teto mensal: R$ %{customdata[1]:,.2f}"
+                "<br>Deputados: %{customdata[2]} (%{customdata[3]:,.0f} deputado-meses)<extra></extra>"
+            ),
             orientation="h",
             marker_color=COR_PRINCIPAL,
         )
     )
-    return _aplicar_layout_base(
+    fig = _aplicar_layout_base(
         fig,
-        "06 · Gasto médio/deputado por UF (Top 10)",
-        "Gasto médio por deputado (R$)",
+        "06 · Uso da cota por UF (% do teto · Top 10)",
+        "% do teto da cota (tracejado = 100%)",
         "",
         margem_esquerda=50,
         barra_horizontal=True,
-        subtitulo=subtitulo,
+        subtitulo=_subtitulo_mais_menos(ordenado, "uf"),
     )
+    return _marcar_teto(fig, ordenado["pct_teto_utilizado"].iloc[0] if not ordenado.empty else 0)
 
 
 def grafico_fornecedores_ceis(df: pd.DataFrame) -> go.Figure:

@@ -20,35 +20,38 @@ RAIZ = Path(__file__).resolve().parent.parent
 PASTA_RAW = RAIZ / "raw"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Auditoria-Cidada-Pipeline/1.0)"}
 
-# Limites mensais oficiais da Cota Parlamentar (CEAP) por UF (Ato da Mesa da Câmara, em R$)
+# Limites mensais oficiais da Cota Parlamentar (CEAP) por UF, em R$: Anexo I do Ato da Mesa
+# n. 270, de 19/01/2023, vigente de 01/02/2023 até o reajuste do Ato da Mesa n. 244, de
+# 20/02/2026 — ou seja, o ano de 2025 inteiro. Fonte:
+# https://www2.camara.leg.br/legin/int/atomes/2023/atodamesa-270-19-janeiro-2023-793708-anexo-cd-mesa.pdf
 COTAS_MENSAIS_UF = {
     "AC": ("50426.26", "Norte"),
-    "AL": ("44632.46", "Nordeste"),
-    "AM": ("48793.25", "Norte"),
+    "AL": ("46737.90", "Nordeste"),
+    "AM": ("49363.92", "Norte"),
     "AP": ("49168.58", "Norte"),
-    "BA": ("42951.99", "Nordeste"),
-    "CE": ("45954.86", "Nordeste"),
+    "BA": ("44804.65", "Nordeste"),
+    "CE": ("48245.57", "Nordeste"),
     "DF": ("36582.46", "Centro-Oeste"),
-    "ES": ("41212.01", "Sudeste"),
-    "GO": ("40971.77", "Centro-Oeste"),
-    "MA": ("47657.66", "Nordeste"),
-    "MG": ("39896.81", "Sudeste"),
-    "MS": ("44289.11", "Centro-Oeste"),
-    "MT": ("43440.12", "Centro-Oeste"),
-    "PA": ("47539.10", "Norte"),
-    "PB": ("45303.85", "Nordeste"),
-    "PE": ("44979.43", "Nordeste"),
-    "PI": ("45849.65", "Nordeste"),
-    "PR": ("42451.77", "Sul"),
-    "RJ": ("39928.60", "Sudeste"),
-    "RN": ("46179.96", "Nordeste"),
+    "ES": ("43217.71", "Sudeste"),
+    "GO": ("41300.86", "Centro-Oeste"),
+    "MA": ("47945.49", "Nordeste"),
+    "MG": ("41886.51", "Sudeste"),
+    "MS": ("46336.64", "Centro-Oeste"),
+    "MT": ("45221.83", "Centro-Oeste"),
+    "PA": ("48021.25", "Norte"),
+    "PB": ("47826.36", "Nordeste"),
+    "PE": ("47470.60", "Nordeste"),
+    "PI": ("46765.57", "Nordeste"),
+    "PR": ("44665.66", "Sul"),
+    "RJ": ("41553.77", "Sudeste"),
+    "RN": ("48525.79", "Nordeste"),
     "RO": ("49466.29", "Norte"),
     "RR": ("51406.33", "Norte"),
-    "RS": ("44652.41", "Sul"),
-    "SC": ("43672.49", "Sul"),
-    "SE": ("43974.74", "Nordeste"),
-    "SP": ("41150.25", "Sudeste"),
-    "TO": ("43570.16", "Norte"),
+    "RS": ("46669.70", "Sul"),
+    "SC": ("45671.58", "Sul"),
+    "SE": ("45933.06", "Nordeste"),
+    "SP": ("42837.33", "Sudeste"),
+    "TO": ("45297.41", "Norte"),
 }
 
 

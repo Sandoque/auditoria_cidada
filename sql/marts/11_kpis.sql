@@ -1,5 +1,5 @@
 -- Cartões executivos do painel de Auditoria Cidadã e Compliance.
--- Grão: a operação inteira, uma linha. Cada CTE também tem uma linha só (1 x 1 x 1 = 1).
+-- Grão: a operação inteira, uma linha. Cada CTE resumo_* também tem uma linha só (1 x 1 x 1 x 1 = 1).
 WITH resumo_geral AS (
     -- Grão: a operação inteira (lançamentos válidos).
     SELECT
@@ -94,6 +94,33 @@ resumo_recorrencia AS (
             2
         ) AS pct_fornecedores_recorrentes
     FROM pagamentos_fornecedor
+),
+gasto_teto_deputado AS (
+    -- Grão: um deputado federal (mesma regra de marts.ranking_deputados).
+    -- meses_exercicio: meses entre a primeira e a última competência com despesa, inclusive.
+    SELECT
+        deputado_id,
+        max(uf)                                         AS uf,
+        sum(valor_liquido)                              AS despesa_liquida,
+        max(mes_competencia) - min(mes_competencia) + 1 AS meses_exercicio
+    FROM refined.despesas_ceap
+    WHERE valor_liquido > 0
+      AND deputado_id IS NOT NULL
+    GROUP BY deputado_id
+),
+resumo_teto AS (
+    -- Grão: a operação inteira (deputados com UF e, portanto, com teto).
+    SELECT
+        round(
+            100.0 * sum(g.despesa_liquida) / sum(u.limite_mensal_cota * g.meses_exercicio),
+            2
+        ) AS pct_teto_utilizado_geral,
+        count(*) AS deputados_com_teto,
+        count(*) FILTER (
+            WHERE round(100.0 * g.despesa_liquida / (u.limite_mensal_cota * g.meses_exercicio), 2) >= 90
+        ) AS deputados_acima_90_teto
+    FROM gasto_teto_deputado AS g
+    JOIN refined.cotas_uf    AS u ON u.uf = g.uf
 )
 SELECT
     g.despesa_total_milhoes,
@@ -113,5 +140,8 @@ SELECT
     c.lancamentos_sancao_vigente_federal,
     c.fornecedores_sancao_vigente_federal,
     c.pct_valor_regular,
-    r.pct_fornecedores_recorrentes
-FROM resumo_geral AS g, resumo_ceis AS c, resumo_recorrencia AS r
+    r.pct_fornecedores_recorrentes,
+    t.pct_teto_utilizado_geral,
+    t.deputados_com_teto,
+    t.deputados_acima_90_teto
+FROM resumo_geral AS g, resumo_ceis AS c, resumo_recorrencia AS r, resumo_teto AS t

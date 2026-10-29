@@ -72,8 +72,9 @@ def test_cartoes_separam_alcance_federal_e_so_ele_fica_em_alerta() -> None:
         "ticket_mediana_nota": 120.0,
         "pct_glosado": 1.5,
         "valor_glosado_total": 37500.0,
-        "pct_fornecedores_recorrentes": 40.0,
-        "fornecedores_distintos": 1,
+        "pct_teto_utilizado_geral": 76.3,
+        "deputados_com_teto": 40,
+        "deputados_acima_90_teto": 3,
         "pct_valor_regular": 98.0,
         "despesa_fornecedores_ceis": 50000.0,
         "despesa_sancao_vigente": 9000.0,
@@ -88,7 +89,8 @@ def test_cartoes_separam_alcance_federal_e_so_ele_fica_em_alerta() -> None:
     assert len(lista) == 7
     assert [c.alerta for c in lista] == [False] * 6 + [True]
     assert lista[0].valor == "R$ 2,50 mi"
-    assert lista[3].detalhe == "de 1 fornecedor"
+    assert lista[3].valor == "76,3%"
+    assert lista[3].detalhe == "3 de 40 deputados usaram 90% ou mais"
     assert lista[5].valor == "R$ 9.000,00"
     assert lista[5].detalhe == "Restrita: R$ 5,0 mil · sem info: R$ 3,0 mil"
     assert lista[6].valor == "R$ 1.000,00"
@@ -97,6 +99,35 @@ def test_cartoes_separam_alcance_federal_e_so_ele_fica_em_alerta() -> None:
     html = painel.html_cartoes([painel.Cartao("A < B", "1", "x & y", alerta=True)])
     assert html.count('class="card card-alert"') == 1
     assert "A &lt; B" in html and "x &amp; y" in html
+
+
+def test_tabela_deputados_filtra_ordena_e_busca_sem_acento() -> None:
+    # Três deputados inventados: dois no RJ, dois do PA, um nome acentuado e outro com prefixo parecido
+    ranking = pd.DataFrame({
+        "deputado_id": ["1", "2", "3"],
+        "nome_parlamentar": ["João Alfa", "Maria Beta", "Joana Gama"],
+        "partido": ["PA", "PB", "PA"],
+        "uf": ["SP", "RJ", "RJ"],
+        "meses_exercicio": [12, 3, 12],
+        "despesa_liquida": [1000.0, 2000.0, 3000.0],
+        "pct_teto_utilizado": [80.0, 95.5, 40.0],
+        "fornecedores_distintos": [5, 2, 9],
+        "maior_fornecedor": ["Forn X", "Forn Y", "Forn Z"],
+        "pct_maior_fornecedor": [30.0, 90.0, 15.0],
+        "posicao_maior_gasto": [3, 2, 1],
+    })
+
+    tabela = painel.tabela_deputados(ranking)
+    assert list(tabela.columns) == list(painel.COLUNAS_TABELA_DEPUTADOS.values())
+    assert list(tabela["Deputado"]) == ["Maria Beta", "João Alfa", "Joana Gama"]
+
+    assert list(painel.tabela_deputados(ranking, nome="  joao ")["Deputado"]) == ["João Alfa"]
+    assert list(painel.tabela_deputados(ranking, nome="JOA")["Deputado"]) == ["João Alfa", "Joana Gama"]
+    assert list(painel.tabela_deputados(ranking, uf="RJ", partido="PA")["Deputado"]) == ["Joana Gama"]
+
+    vazia = painel.tabela_deputados(ranking, uf="SP", nome="maria")
+    assert vazia.empty
+    assert list(vazia.columns) == list(painel.COLUNAS_TABELA_DEPUTADOS.values())
 
 
 def test_painel_e_relatorio_sobre_banco_sintetico(
@@ -144,8 +175,16 @@ def test_painel_e_relatorio_sobre_banco_sintetico(
     relatorio.gerar_relatorio(arq_html_1)
     relatorio.gerar_relatorio(arq_html_2)
 
+    assert list(painel.grafico_gasto_uf(dados["gasto_medio_por_uf"]).data[0].x) == list(
+        dados["gasto_medio_por_uf"]["pct_teto_utilizado"]
+    )
+
     assert arq_html_1.is_file()
     assert arq_html_1.stat().st_size < 200 * 1024
+    pagina = arq_html_1.read_text(encoding="utf-8")
+    # A Faixa 2 traz o deputado sintético já renderizado (funciona sem JS) e o script dos filtros
+    assert "<tr><td>Dep Alfa<td>PA<td>SP<td>1<td>R$ 1.200,00<td>" in pagina
+    assert 'id="f-uf"' in pagina and "function filtrar()" in pagina
     linhas_1 = [ln for ln in arq_html_1.read_text(encoding="utf-8").splitlines() if "<footer>" not in ln]
     linhas_2 = [ln for ln in arq_html_2.read_text(encoding="utf-8").splitlines() if "<footer>" not in ln]
     assert linhas_1 == linhas_2
