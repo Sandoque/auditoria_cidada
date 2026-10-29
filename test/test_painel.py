@@ -178,6 +178,16 @@ def test_painel_e_relatorio_sobre_banco_sintetico(
 
     assert set(todos.keys()) == set(painel.MARTS_PAINEL)
     assert painel.anos(todos) == [2026, 2025]
+
+    # Gráfico 13 compara o ano com o anterior; só ano par tem faixa de vedação eleitoral
+    fig_2026 = painel.grafico_divulgacao_eleitoral(todos["divulgacao_eleitoral"], 2026)
+    assert [trace.name for trace in fig_2026.data] == ["2025", "2026"]
+    assert len(fig_2026.layout.shapes) == 1
+    assert fig_2026.layout.title.subtitle.text.startswith("Eleição em 04/10/2026: a cota não paga divulgação de 06/06")
+    fig_2025 = painel.grafico_divulgacao_eleitoral(todos["divulgacao_eleitoral"], 2025)
+    assert [trace.name for trace in fig_2025.data] == ["2025"]
+    assert len(fig_2025.layout.shapes) == 0
+    assert fig_2025.layout.title.subtitle.text == "Sem eleição em 2025: nenhum período de vedação à divulgação"
     dados = painel.do_ano(todos, 2025)
     assert all((df["ano"] == 2025).all() for df in dados.values())
     assert len(painel.grafico_gastos_mensais(dados["gastos_mensais"]).data[0].x) == len(dados["gastos_mensais"])

@@ -58,9 +58,10 @@ Construção da camada de apresentação do pipeline de Auditoria Cidadã e Comp
   - `08 · Taxa de glosa por categoria (Top 10)` (barras horizontais de `pct_valor_glosado`, maior em cima) · subtítulo: maior taxa e maior corte em reais
     - *Motivo*: em reais, o ranking de glosa repete o tamanho de cada categoria; a taxa mostra onde a Câmara mais corta.
   - `09 · Concentração de Pareto dos fornecedores` (curva de `pct_acumulado` por `posicao`, com linha horizontal tracejada em 80%). A anotação da linha e o subtítulo usam a primeira `posicao` com `pct_acumulado >= 80`, lida do mart, nunca um número fixo no código.
-- **Faixa 5 (Largura inteira, compacta)**:
-  - `01 · Desembolso mensal da Cota Parlamentar` (linha com marcadores, eixo Y a partir de zero, altura reduzida) · subtítulo: mês de pico e mês de piso.
+- **Faixa 5 (Duas colunas compactas)**:
+  - `01 · Desembolso mensal da Cota Parlamentar` (linha com marcadores, eixo Y a partir de zero, altura reduzida) · subtítulo: mês de pico e mês de piso (num ano parcial, avisa que os meses recentes ainda recebem notas).
     - *Motivo*: a série é quase plana (variação de ~9% entre fevereiro e dezembro); na faixa de destaque e com eixo truncado, ela parecia ter picos que não existem.
+  - `13 · Divulgação do mandato: ano × ano anterior` (duas linhas no mesmo eixo de meses, ano anterior em cinza; faixa âmbar da vedação de 120 dias antes da eleição) · subtítulo: data da eleição e início da vedação, ou "sem eleição". Regra em `specs/multianual.md`, seção 8.
 
 ### 4. FORMATAÇÃO PURA (`painel.py`)
 - `reais(valor, casas=2) -> "R$ 1.003.862,14"`

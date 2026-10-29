@@ -20,7 +20,7 @@ O que os dados de 2025 mostram, e o que só apareceu porque cada número foi con
 2. **A tabela de limites da cota usada pelo projeto estava errada em 22 das 27 UFs.** A pista foi estatística: 30 deputados apareciam gastando mais do que a cota permite. Com a tabela oficial do Ato da Mesa n.º 270/2023, vários deputados de Goiás passaram a fechar o ano em **exatamente 100,00%** (R$ 495.610,32 = 12 × R$ 41.300,86) — a assinatura de quem gasta a cota até o último centavo, e a prova de que o limite agora é o que a Câmara aplica.
 3. **A API da Câmara registra a volta de suplentes de forma inconsistente.** Reentradas aparecem como `"DIVERSO - … / Entrada - Reassunção"`, às vezes com situação `CONVOCADO`. Lendo só a situação, três suplentes ficavam com 43 a 101 dias de mandato num ano em que gastaram todos os meses — e com 300% a 675% de uso da cota. Com a regra corrigida, os 562 deputados de 2025 têm período oficial de mandato e o maior uso cai para 100,8%, coerente com os adicionais de cota de líderes e presidentes de comissão.
 4. **Em reais, quase todo ranking só mede tamanho.** O PL lidera o gasto por partido (18,4%) porque tem 104 deputados; medido em % do teto, as 10 maiores bancadas ficam todas entre 73% e 83%. Na glosa, Locação de Veículos lidera em reais, mas a Câmara corta só 0,67% do valor; a maior taxa é de Cursos e Palestras (32,1%). No uso médio, a Câmara gastou **76,9% do teto** em 2025, e 120 dos 562 deputados usaram 90% ou mais.
-5. **Em aberto: 2026 tem cara de ano eleitoral.** O gasto cai de R$ 23,5 mi em maio para R$ 12,9 mi em junho, um mês já fechado (passado o prazo de 90 dias para apresentar notas). A hipótese é a restrição à divulgação do mandato antes da eleição — divulgação é quase metade do gasto —, ainda não testada por categoria.
+5. **O ano eleitoral de 2026 aparece nos dados no dia exato da regra.** O Ato da Mesa n.º 43/2009 (art. 2º, XII) não deixa a cota pagar divulgação do mandato nos 120 dias antes da eleição, salvo para quem não é candidato. Com a eleição em 04/10/2026, a vedação começa em 06/06 — e é ali que as notas de divulgação param: de R$ 1,3 a 1,8 mi por dia no início de junho para 2 a 4 notas por dia. Antes do corte houve corrida: a divulgação de janeiro a maio foi 26% maior que em 2025 (R$ 49,5 mi contra R$ 39,3 mi), com maio 44% acima. Durante a vedação, só 26 dos 523 deputados que usaram a rubrica até maio continuaram gastando com divulgação (R$ 1,05 mi), compatível com a exceção para quem não é candidato. As demais categorias seguiram normais em junho e julho: a queda do gasto total em 2026 é a regra eleitoral, não atraso de notas (gráfico 13 do painel).
 
 ---
 
@@ -69,7 +69,7 @@ raw/ (5 arquivos .csv.gz intocados)
 raw.* (espelho fiel dos arquivos governamentais no auditoria.duckdb)
   ↓  pipeline/transformacao.py (tipos declarados, strptime/CAST sem TRY_CAST, 202.714 linhas)
 refined.* (dado limpo e tipado no grão do evento, nulos preservados com motivo)
-  ↓  sql/marts/01..12.sql + pipeline/marts.py (12 marts transacionais)
+  ↓  sql/marts/00..13.sql + pipeline/marts.py (14 marts transacionais, com ano no grão)
 marts.* (tabelas agregadas no grão exato de cada pergunta de auditoria)
   ↓  painel.py -> app.py (Streamlit) e relatorio.py (relatorio.html)
 Apresentação (zero cálculo na tela: apenas SELECT * FROM marts.<nome>)
@@ -86,10 +86,11 @@ Apresentação (zero cálculo na tela: apenas SELECT * FROM marts.<nome>)
 
 ---
 
-## 4. Os 12 Marts em `sql/marts/` e Números de Conferência
+## 4. Os 14 Marts em `sql/marts/` e Números de Conferência (ano de 2025)
 
 | Arquivo SQL | Tabela em `marts` | Grão | Linhas | Número de Conferência |
 | :--- | :--- | :--- | ---: | :--- |
+| `00_teto_deputado_ano.sql` | `marts.teto_deputado_ano` | Um deputado em um ano | 562 | Teto por dia de efetivo exercício (histórico oficial de mandatos × limite vigente no dia): `76,93%` usado no geral, máximo `100,79%` |
 | `01_gastos_mensais.sql` | `marts.gastos_mensais` | Um mês de competência | 12 | Total `R$ 215.109.771,74` · Pico out/2025: `R$ 18.827.804,70` |
 | `02_gastos_por_categoria.sql` | `marts.gastos_por_categoria` | Uma categoria de despesa | 18 | Total `R$ 215.109.771,74` · 1.ª Divulgação: `R$ 102.059.898,64` (47,4%) |
 | `03_conformidade_ceis.sql` | `marts.conformidade_ceis` | A operação inteira (1 linha) | 1 | `171.026` válidos · `2.976` no CEIS (`R$ 1.816.195,33`) · `50` em sanção vigente (`R$ 296.423,45`), dos quais só `5` (`R$ 10.553,61`) com alcance federal · `R$ 192.079,60` restrita a outro órgão · `R$ 93.790,24` sem informação |
@@ -102,6 +103,7 @@ Apresentação (zero cálculo na tela: apenas SELECT * FROM marts.<nome>)
 | `10_gastos_por_partido.sql` | `marts.gastos_por_partido` | Um partido (ou `'LIDERANCAS'`) | 23 | Soma `R$ 215.109.771,74` (inclui os 937 lançamentos de lideranças sem partido individual) · 10 maiores bancadas entre `73,12%` (MDB) e `82,05%` (PSB) do teto |
 | `11_kpis.sql` | `marts.kpis` | A operação inteira (1 linha) | 1 | Alimenta os 7 cartões executivos (`R$ 215,11 mi` · Ticket `R$ 1.257,76` · Mediana `R$ 240,04` · `76,32%` do teto usado) |
 | `12_deputados_por_uf.sql` | `marts.deputados_por_uf` | Uma UF | 27 | `SP` com `78` deputados ativos, `RJ` com `53`, `MG` com `56` |
+| `13_divulgacao_eleitoral.sql` | `marts.divulgacao_eleitoral` | Um mês de competência | 12 | Divulgação × demais categorias, com eleição no 1º domingo de outubro dos anos pares e vedação 120 dias antes (2026: de `06/06` a `04/10`) |
 
 ---
 
