@@ -17,6 +17,60 @@ st.set_page_config(
     layout="wide",
 )
 
+_CSS_ALTO_CONTRASTE = """
+<style>
+  .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+    background-color: #F4F6F4 !important;
+    color: #0B1315 !important;
+  }
+  h1, h2, h3, p, span, label, [data-testid="stMarkdownContainer"] p {
+    color: #0B1315 !important;
+  }
+  [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p {
+    color: #1E293B !important;
+    font-weight: 500 !important;
+    opacity: 1 !important;
+  }
+  [data-testid="stMetric"] {
+    background-color: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-top: 4px solid #1A6B52 !important;
+    border-radius: 8px !important;
+    padding: 12px 14px !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+  }
+  [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] p, [data-testid="stMetricLabel"] div {
+    color: #0F172A !important;
+    font-weight: 600 !important;
+    font-size: 0.82rem !important;
+    line-height: 1.25 !important;
+    white-space: normal !important;
+    opacity: 1 !important;
+  }
+  [data-testid="stMetricValue"], [data-testid="stMetricValue"] div {
+    color: #0B1315 !important;
+    font-weight: 700 !important;
+    font-size: 1.15rem !important;
+  }
+  [data-testid="stPlotlyChart"] {
+    background-color: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 8px !important;
+    padding: 6px !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+  }
+  .stButton > button {
+    background-color: #1A6B52 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #134E3B !important;
+    font-weight: 600 !important;
+  }
+  .stButton > button p, .stButton > button span {
+    color: #FFFFFF !important;
+  }
+</style>
+"""
+
 
 @st.cache_data
 def carregar_dados() -> dict[str, pd.DataFrame]:
@@ -24,6 +78,8 @@ def carregar_dados() -> dict[str, pd.DataFrame]:
 
 
 def renderizar_pagina() -> None:
+    st.markdown(_CSS_ALTO_CONTRASTE, unsafe_allow_html=True)
+
     col_titulo, col_botao = st.columns([5, 1])
     with col_titulo:
         st.title("Auditoria Cidadã · Cota Parlamentar (CEAP 2025) × Sanções CEIS/CGU")
@@ -96,6 +152,7 @@ def renderizar_pagina() -> None:
     st.plotly_chart(
         painel.grafico_gastos_mensais(df_mensal_filtrado),
         width="stretch",
+        theme=None,
     )
 
     # Faixa 3: Três colunas iguais — Onde estão os gastos?
@@ -104,16 +161,19 @@ def renderizar_pagina() -> None:
         st.plotly_chart(
             painel.grafico_categorias(dados["gastos_por_categoria"]),
             width="stretch",
+            theme=None,
         )
     with f3_col2:
         st.plotly_chart(
             painel.grafico_partidos(dados["gastos_por_partido"]),
             width="stretch",
+            theme=None,
         )
     with f3_col3:
         st.plotly_chart(
             painel.grafico_gasto_uf(dados["gasto_medio_por_uf"]),
             width="stretch",
+            theme=None,
         )
 
     # Faixa 4: Três colunas iguais — Onde mora o risco e a concentração?
@@ -122,16 +182,19 @@ def renderizar_pagina() -> None:
         st.plotly_chart(
             painel.grafico_fornecedores_ceis(dados["fornecedores_sancionados"]),
             width="stretch",
+            theme=None,
         )
     with f4_col2:
         st.plotly_chart(
             painel.grafico_glosas(dados["glosa_por_categoria"]),
             width="stretch",
+            theme=None,
         )
     with f4_col3:
         st.plotly_chart(
             painel.grafico_pareto_fornecedores(dados["fornecedores_pareto"]),
             width="stretch",
+            theme=None,
         )
 
 
