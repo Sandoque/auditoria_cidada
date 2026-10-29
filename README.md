@@ -2,9 +2,9 @@
 
 [![CI · Testes e Qualidade de Código](https://github.com/Sandoque/auditoria_cidada/actions/workflows/ci.yml/badge.svg)](https://github.com/Sandoque/auditoria_cidada/actions/workflows/ci.yml)
 
-🔗 **Painel Executivo Online (GitHub Pages)**: **[Abrir `relatorio.html` no navegador](https://sandoque.github.io/auditoria_cidada/relatorio.html)**
+🔗 **Painel Executivo Online (GitHub Pages)**: **[Abrir `relatorio.html` no navegador](https://sandoque.github.io/auditoria_cidada/relatorio.html)** — ano mais recente; os anos anteriores ficam em `relatorio_AAAA.html`, com links no topo da página.
 
-Pipeline completo de Engenharia de Dados construído do zero com **Spec-Driven Development**, **Python**, **DuckDB**, **SQL**, **Streamlit**, **Plotly** e **Pytest** para auditar os desembolsos da **Cota para Exercício da Atividade Parlamentar (CEAP 2025)** cruzados com o **Cadastro Nacional de Empresas Inidôneas e Suspensas (CEIS/CGU)**, o **Cadastro de Deputados** e os **Limites Oficiais de Cota por UF (IBGE/Câmara)**.
+Pipeline completo de Engenharia de Dados construído do zero com **Spec-Driven Development**, **Python**, **DuckDB**, **SQL**, **Streamlit**, **Plotly** e **Pytest** para auditar os desembolsos da **Cota para Exercício da Atividade Parlamentar (CEAP, de 2025 até o ano corrente)** cruzados com o **Cadastro Nacional de Empresas Inidôneas e Suspensas (CEIS/CGU)**, o **Cadastro e o Histórico de Mandatos dos Deputados** e os **Limites Oficiais de Cota por UF (Atos da Mesa da Câmara)**.
 
 ![Rascunho do Painel em Grade de 12 Colunas](design/rascunho.png)
 
@@ -16,14 +16,16 @@ Todos os conjuntos de dados são públicos, oficiais e abertos sob a **Lei de Ac
 
 | Arquivo em `raw/` | Fonte Oficial | Link da Fonte | Registros |
 | :--- | :--- | :--- | ---: |
-| `despesas_ceap.csv.gz` | Câmara dos Deputados — Dados Abertos (CEAP 2025) | `https://www.camara.leg.br/cotas/Ano-2025.csv.zip` | 171.059 |
+| `despesas_ceap.csv.gz` | Câmara dos Deputados — Dados Abertos (CEAP, um arquivo por ano empilhado) | `https://www.camara.leg.br/cotas/Ano-AAAA.csv.zip` (2025 até o ano corrente) | 290.602 (171.059 de 2025) |
 | `deputados.csv.gz` | Câmara dos Deputados — Cadastro de Parlamentares | `https://dadosabertos.camara.leg.br/arquivos/deputados/csv/deputados.csv` | 7.889 |
-| `sancoes_ceis.csv.gz` | Controladoria-Geral da União (CGU) — Portal da Transparência (CEIS) | `https://portaldatransparencia.gov.br/download-de-dados/ceis` | 23.739 |
+| `sancoes_ceis.csv.gz` | Controladoria-Geral da União (CGU) — Portal da Transparência (CEIS do dia) | `https://portaldatransparencia.gov.br/download-de-dados/ceis` | 23.759 |
 | `sancoes_cnep.csv.gz` | Controladoria-Geral da União (CGU) — Portal da Transparência (CNEP) | `https://portaldatransparencia.gov.br/download-de-dados/cnep` | 1.853 |
-| `cotas_uf.csv.gz` | API de Localidades do IBGE + Anexo I do Ato da Mesa n.º 270/2023 (limites mensais de cota por UF vigentes em 2025) | `https://servicodados.ibge.gov.br/api/v1/localidades/estados` | 27 |
-| **Total em `raw`** | | | **204.567** |
+| `cotas_uf.csv.gz` | API de Localidades do IBGE (cadastro das UFs) | `https://servicodados.ibge.gov.br/api/v1/localidades/estados` | 27 |
+| `limites_cota_uf.csv.gz` | Atos da Mesa da Câmara n.º 270/2023 (vigente de 01/02/2023) e n.º 244/2026 (vigente de 20/02/2026), digitados e conferidos | [Ato 270/2023, Anexo I](https://www2.camara.leg.br/legin/int/atomes/2023/atodamesa-270-19-janeiro-2023-793708-anexo-cd-mesa.pdf) · [Cota Parlamentar — Câmara](https://www2.camara.leg.br/comunicacao/assessoria-de-imprensa/guia-para-jornalistas/cota-parlamentar) | 54 |
+| `historico_deputados.csv.gz` | Câmara dos Deputados — API de Dados Abertos (histórico de mandato de cada deputado com despesa) | `https://dadosabertos.camara.leg.br/api/v2/deputados/{id}/historico` | 6.353 |
+| **Total em `raw`** | | | **330.537** |
 
-> Os cinco arquivos `.csv.gz` já estão versionados em `raw/` (~9,6 MB no total) para execução imediata e offline. Caso deseje baixar novamente direto dos portais governamentais, execute `uv run python scripts/baixar_dados_oficiais.py`.
+> Os sete arquivos `.csv.gz` estão versionados em `raw/` (~14 MB, retrato de 29/10/2026) para execução imediata e offline; os números de conferência das seções 2 a 4 são os do ano de 2025 desse retrato. Para baixar de novo direto dos portais governamentais, execute `uv run python scripts/baixar_dados_oficiais.py`. O GitHub Pages pode ser republicado com dados novos pelo workflow sob demanda (seção 5).
 
 ---
 
@@ -33,7 +35,7 @@ Antes de qualquer `SELECT` ou `JOIN`, o grão e as chaves de cada tabela em `ref
 
 | Tabela em `refined` | O que é uma linha (Grão) | Chave Primária (PK) | Chaves Estrangeiras (FK) | Linhas |
 | :--- | :--- | :--- | :--- | ---: |
-| `refined.despesas_ceap` | Um lançamento de despesa/reembolso na Cota Parlamentar | `(documento_id, cadastro_interno_id, subcota_id, parcela, numero_documento, valor_liquido, mes_competencia)` | `deputado_id` → `deputados`<br>`uf` → `cotas_uf`<br>`documento_fornecedor` → `sancoes_ceis` | 171.059 |
+| `refined.despesas_ceap` | Um lançamento de despesa/reembolso na Cota Parlamentar | `(documento_id, cadastro_interno_id, subcota_id, parcela, numero_documento, valor_liquido, ano_competencia, mes_competencia)` | `deputado_id` → `deputados`<br>`uf` → `cotas_uf`<br>`documento_fornecedor` → `sancoes_ceis` | 171.059 |
 | `refined.deputados` | Um deputado federal cadastrado na história da Câmara | `deputado_id` (extraído do final da `uri`) | `uf_nascimento` → `cotas_uf` | 7.889 |
 | `refined.sancoes_ceis` | Uma sanção administrativa publicada no CEIS | `sancao_id` (`CÓDIGO DA SANÇÃO`) | `documento_sancionado` (não é único: 23.739 sanções para 16.934 CPF/CNPJs) | 23.739 |
 | `refined.cotas_uf` | Uma Unidade da Federação brasileira | `uf` (`sigla_uf`) | — | 27 |
@@ -113,13 +115,17 @@ uv run python ui.py
 # 4. Abrir o dashboard interativo no Streamlit (http://localhost:8501)
 uv run streamlit run app.py
 
-# 5. Gerar o relatório estático autocontido em HTML (relatorio.html)
+# 5. Gerar o relatório estático: relatorio.html (ano mais recente) + relatorio_AAAA.html (anos anteriores)
 uv run python relatorio.py
 
-# 6. Rodar a suíte de testes unitários com cobertura (>= 60%, atual: 92%) e linter
+# 6. Rodar a suíte de testes unitários com cobertura (>= 60%, atual: 94%) e linter
 uv run pytest --cov
 uv run ruff check .
 ```
+
+### Atualização sob demanda (GitHub Actions)
+
+O workflow [`atualizar_dados.yml`](.github/workflows/atualizar_dados.yml) roda só quando disparado (**Actions → Atualização dos dados e do painel → Run workflow**); o agendamento semanal está desligado porque o projeto é uma demonstração, e religá-lo é uma linha no arquivo. Ele baixa os dados oficiais, roda os testes, reconstrói o pipeline do zero com as regras de qualidade e, só se tudo passar, faz commit dos `relatorio*.html` na `main` — o que republica o GitHub Pages. Se qualquer passo falhar (portal fora do ar, regra de qualidade quebrada), a página anterior continua no ar. Os arquivos de `raw/` não entram nesse commit para o repositório não crescer a cada atualização. Regras completas em [`specs/multianual.md`](specs/multianual.md).
 
 ---
 

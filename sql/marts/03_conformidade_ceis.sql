@@ -1,5 +1,5 @@
 -- Quanto foi pago a fornecedores limpos vs. sancionados no CEIS, e com que alcance de sanção?
--- Grão: a operação inteira, uma linha.
+-- Grão: um ano (ano), uma linha por ano.
 -- Reduz sancoes_ceis a uma linha por documento antes do JOIN para não multiplicar notas.
 WITH ceis_por_fornecedor AS (
     -- Grão: um documento_sancionado (CNPJ/CPF) presente no CEIS.
@@ -32,6 +32,7 @@ avaliacao_notas AS (
     -- A subconsulta escalar devolve no máximo um valor por nota: o alcance mais amplo entre
     -- as sanções cuja janela contém a data da nota (NULL quando nenhuma está vigente).
     SELECT
+        d.ano_competencia AS ano,
         d.valor_liquido,
         c.documento_sancionado IS NOT NULL AS no_ceis,
         (
@@ -47,6 +48,7 @@ avaliacao_notas AS (
     WHERE d.valor_liquido > 0
 )
 SELECT
+    ano,
     count(*) AS total_lancamentos,
     count(*) FILTER (WHERE NOT no_ceis) AS lancamentos_limpos,
     count(*) FILTER (WHERE no_ceis) AS lancamentos_ceis,
@@ -66,3 +68,5 @@ SELECT
         2
     ) AS pct_valor_regular
 FROM avaliacao_notas
+GROUP BY ano
+ORDER BY ano

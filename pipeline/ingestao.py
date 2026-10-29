@@ -7,6 +7,8 @@ SPEC DO MÓDULO (Fonte da Verdade):
    - sancoes_ceis.csv.gz  -> raw.sancoes_ceis
    - sancoes_cnep.csv.gz  -> raw.sancoes_cnep
    - cotas_uf.csv.gz      -> raw.cotas_uf
+   - limites_cota_uf.csv.gz     -> raw.limites_cota_uf     (Etapa 6)
+   - historico_deputados.csv.gz -> raw.historico_deputados (Etapa 6)
    Motivo: vocabulário em português, claro e conciso para os JOINs das próximas etapas.
 
 2. PROIBIÇÕES:
@@ -22,7 +24,7 @@ SPEC DO MÓDULO (Fonte da Verdade):
 
 4. REEXECUÇÃO E ERRO:
    Idempotente (CREATE OR REPLACE TABLE). Antes de abrir o banco, confere a existência
-   dos cinco arquivos em PASTA_RAW; se faltar qualquer um, lista todos os ausentes e
+   dos sete arquivos em PASTA_RAW; se faltar qualquer um, lista todos os ausentes e
    encerra com sys.exit(1) sem gravar parcialmente.
 """
 
@@ -38,6 +40,8 @@ MAPA_ARQUIVOS: tuple[tuple[str, str], ...] = (
     ("sancoes_ceis.csv.gz", "sancoes_ceis"),
     ("sancoes_cnep.csv.gz", "sancoes_cnep"),
     ("cotas_uf.csv.gz", "cotas_uf"),
+    ("limites_cota_uf.csv.gz", "limites_cota_uf"),
+    ("historico_deputados.csv.gz", "historico_deputados"),
 )
 
 

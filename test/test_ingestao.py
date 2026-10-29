@@ -31,9 +31,16 @@ def _criar_csvs_sinteticos(pasta_raw: Path) -> None:
     pd.DataFrame([{"codigo_ibge_uf": "35", "sigla_uf": "SP"}]).to_csv(
         pasta_raw / "cotas_uf.csv.gz", index=False, encoding="utf-8", compression="gzip"
     )
+    # Limite com vigência e um evento de mandato (Etapa 6), também gravados sem conversão
+    pd.DataFrame([{"sigla_uf": "SP", "vigencia_inicio": "2023-02-01", "limite_mensal_cota": "1000.00"}]).to_csv(
+        pasta_raw / "limites_cota_uf.csv.gz", index=False, encoding="utf-8", compression="gzip"
+    )
+    pd.DataFrame([{"id": "101", "dataHora": "2023-02-01T12:05", "descricaoStatus": "Entrada - Posse"}]).to_csv(
+        pasta_raw / "historico_deputados.csv.gz", index=False, encoding="utf-8", compression="gzip"
+    )
 
 
-def test_ingestao_grava_cinco_tabelas_como_varchar_e_preserva_zero_a_esquerda(
+def test_ingestao_grava_sete_tabelas_como_varchar_e_preserva_zero_a_esquerda(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     pasta_raw = tmp_path / "raw"
@@ -60,8 +67,8 @@ def test_ingestao_grava_cinco_tabelas_como_varchar_e_preserva_zero_a_esquerda(
     finally:
         con.close()
 
-    assert total_1 == 6
-    assert total_2 == 6
+    assert total_1 == 8
+    assert total_2 == 8
     assert all(t == "VARCHAR" for t in tipos.values())
     assert cnpj == "01234567000199"
     assert nulos_data == 1

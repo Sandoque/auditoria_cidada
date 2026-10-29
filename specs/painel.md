@@ -1,5 +1,7 @@
 # Spec da Etapa 4 — Painel em Python (`painel.py`, `app.py`) e Relatório HTML (`relatorio.py`)
 
+> **Atualizada pela Etapa 6** (`specs/multianual.md`): seletor de ano no Streamlit, uma página de relatório por ano e aviso de ano parcial.
+
 ## CONTEXTO
 Construção da camada de apresentação do pipeline de Auditoria Cidadã e Compliance a partir do rascunho em `design/rascunho.png` e dos doze marts do schema `marts`.
 

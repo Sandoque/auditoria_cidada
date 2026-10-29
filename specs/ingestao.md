@@ -1,5 +1,7 @@
 # Spec da Etapa 1 — Ingestão (`pipeline/db.py`, `pipeline/ingestao.py`, `ui.py`)
 
+> **Atualizada pela Etapa 6** (`specs/multianual.md`): a ingestão passa a exigir sete arquivos (`limites_cota_uf.csv.gz` e `historico_deputados.csv.gz` são novos) e `despesas_ceap.csv.gz` traz todos os anos desde 2025. As contagens dos critérios de aceite abaixo são as do retrato de 2025.
+
 ## CONTEXTO
 Construção de um pipeline de Auditoria Cidadã e Compliance sobre dados públicos oficiais da Câmara dos Deputados (CEAP 2025 e Cadastro de Deputados), da Controladoria-Geral da União — CGU (CEIS e CNEP) e do IBGE (UFs e limites mensais de cota). Trabalho com *spec-driven development*: a spec abaixo é a fonte da verdade e o código é consequência dela.
 

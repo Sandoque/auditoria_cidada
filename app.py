@@ -57,20 +57,21 @@ def renderizar_pagina() -> None:
     st.markdown(_CSS_ALTO_CONTRASTE, unsafe_allow_html=True)
     st.markdown(f"<style>{painel.CSS_CARTOES}</style>", unsafe_allow_html=True)
 
-    col_titulo, col_botao = st.columns([5, 1])
-    with col_titulo:
-        st.title("Auditoria Cidadã · Cota Parlamentar (CEAP 2025) × Sanções CEIS/CGU")
+    col_titulo, col_ano, col_botao = st.columns([4, 1, 1])
     with col_botao:
         if st.button("Recarregar dados", width="stretch"):
             st.cache_data.clear()
 
     try:
-        dados = carregar_dados()
+        dados_todos = carregar_dados()
+        anos = painel.anos(dados_todos)
+        ano = col_ano.selectbox("Ano", anos)
+        dados = painel.do_ano(dados_todos, ano)
         cartoes = painel.cartoes(dados["kpis"].iloc[0])
     except KeyError as exc:
         st.error(
-            f"A coluna {exc} não existe em marts.kpis: o banco foi gerado por uma versão "
-            "anterior dos marts.\n\nExecute no terminal `uv run python -m pipeline.marts` "
+            f"A coluna {exc} não existe nos marts: o banco foi gerado por uma versão "
+            "anterior do pipeline.\n\nExecute no terminal `uv run python executar.py` "
             "e clique em **Recarregar dados**."
         )
         st.stop()
@@ -82,6 +83,13 @@ def renderizar_pagina() -> None:
         )
         st.stop()
         return
+
+    periodo = painel.periodo(dados)
+    with col_titulo:
+        st.title(f"Auditoria Cidadã · Cota Parlamentar (CEAP {ano}) × Sanções CEIS/CGU")
+        st.caption(painel.texto_periodo(periodo))
+    if periodo.parcial:
+        st.info(painel.AVISO_ANO_PARCIAL)
 
     # Faixa 1: Sete cartões executivos (lidos diretamente de marts.kpis)
     st.markdown(painel.html_cartoes(cartoes), unsafe_allow_html=True)
@@ -108,6 +116,7 @@ def renderizar_pagina() -> None:
             "% do teto": st.column_config.ProgressColumn(
                 format="%.1f%%", min_value=0, max_value=100, color="#1A6B52"
             ),
+            "Meses": st.column_config.NumberColumn(format="%.1f"),
             "Gasto (R$)": st.column_config.NumberColumn(format="localized"),
             "% no maior fornecedor": st.column_config.NumberColumn(format="%.1f%%"),
         },
@@ -158,7 +167,7 @@ def renderizar_pagina() -> None:
 
     # Faixa 5: Largura inteira, compacta — ritmo mensal (série quase plana, eixo a partir de zero)
     st.plotly_chart(
-        painel.grafico_gastos_mensais(dados["gastos_mensais"]),
+        painel.grafico_gastos_mensais(dados["gastos_mensais"], parcial=periodo.parcial),
         width="stretch",
         theme=None,
     )

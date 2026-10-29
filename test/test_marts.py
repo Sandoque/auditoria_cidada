@@ -56,8 +56,19 @@ def _criar_refined_sintetico(con: duckdb.DuckDBPyConnection) -> None:
     """)
     con.execute("""
         CREATE TABLE refined.cotas_uf AS
-        SELECT 35 AS codigo_ibge, 'SP' AS uf, 'São Paulo' AS nome_estado,
-               'Sudeste' AS regiao, DECIMAL '41150.25' AS limite_mensal_cota
+        SELECT 35 AS codigo_ibge, 'SP' AS uf, 'São Paulo' AS nome_estado, 'Sudeste' AS regiao
+    """)
+    con.execute("""
+        CREATE TABLE refined.limites_cota_uf AS
+        SELECT 'SP' AS uf, DATE '2023-02-01' AS vigencia_inicio,
+               DECIMAL '41150.25' AS limite_mensal_cota, '270/2023' AS ato_da_mesa
+    """)
+    # Histórico vazio: sem período oficial, o teto cai na reserva aproximada (meses com despesa)
+    con.execute("""
+        CREATE TABLE refined.historico_deputados (
+            deputado_id VARCHAR, data_hora TIMESTAMP, situacao VARCHAR, condicao_eleitoral VARCHAR,
+            descricao_status VARCHAR, partido VARCHAR, uf VARCHAR, legislatura_id INTEGER, nome_parlamentar VARCHAR
+        )
     """)
 
 
@@ -212,27 +223,58 @@ def _trocar_por_cenario_de_teto(con: duckdb.DuckDBPyConnection) -> None:
     con.execute("""
         CREATE OR REPLACE TABLE refined.cotas_uf AS
         SELECT * FROM (
+            VALUES (35, 'SP', 'São Paulo', 'Sudeste'), (33, 'RJ', 'Rio de Janeiro', 'Sudeste')
+        ) AS t(codigo_ibge, uf, nome_estado, regiao)
+    """)
+    con.execute("""
+        CREATE OR REPLACE TABLE refined.limites_cota_uf AS
+        SELECT * FROM (
+            VALUES ('SP', DATE '2023-02-01', DECIMAL '1000.00', '270/2023'),
+                   ('RJ', DATE '2023-02-01', DECIMAL '2000.00', '270/2023')
+        ) AS t(uf, vigencia_inicio, limite_mensal_cota, ato_da_mesa)
+    """)
+    con.execute("""
+        CREATE OR REPLACE TABLE refined.historico_deputados AS
+        SELECT * FROM (
             VALUES
-            (35, 'SP', 'São Paulo', 'Sudeste', DECIMAL '1000.00'),
-            (33, 'RJ', 'Rio de Janeiro', 'Sudeste', DECIMAL '2000.00')
-        ) AS t(codigo_ibge, uf, nome_estado, regiao, limite_mensal_cota)
+            -- H1 a H3: Dep 102 entra em 01/01; a licença para tratamento de saúde NÃO fecha o período (art. 11, § 2º);
+            -- a saída para Secretário de Estado fecha em 31/01, e o dia do afastamento conta — janeiro inteiro
+            ('102', TIMESTAMP '2025-01-01 10:00:00', 'Exercício', 'Titular', 'Entrada - Posse de Eleito Titular',
+             'PB', 'RJ', 57, 'Dep Beta'),
+            ('102', TIMESTAMP '2025-01-10 10:00:00', 'Licença', 'Titular',
+             'Saída - Afastamento com prazo determinado - Licença para Tratamento de Saúde', 'PB', 'RJ', 57, 'Dep Beta'),
+            ('102', TIMESTAMP '2025-01-31 18:00:00', 'Licença', 'Titular',
+             'Saída - Afastamento sem prazo determinado - Secretário de Estado', 'PB', 'RJ', 57, 'Dep Beta'),
+            -- H4: evento informativo sem situação — não muda o estado
+            ('103', TIMESTAMP '2023-02-01 00:00:00', NULL, NULL,
+             'Nome no início da legislatura / Partido no início da legislatura', 'PB', 'RJ', 57, 'Dep Gama'),
+            -- H5 e H6: Dep 103 reentra com descrição composta e situação CONVOCADO (como a API grava) e sai em 28/02:
+            -- 14 dias de fevereiro = meio mês de cota
+            ('103', TIMESTAMP '2025-02-15 09:00:00', 'CONVOCADO', 'Suplente',
+             'DIVERSO - Alteração na Situação - Efetivação (Ato da Presidência) / Entrada - Reassunção',
+             'PB', 'RJ', 57, 'Dep Gama'),
+            ('103', TIMESTAMP '2025-02-28 10:00:00', 'SUPLENCIA', 'Suplente',
+             'Saída - Afastamento sem prazo determinado - Afastamento de Suplente (automático)',
+             'PB', 'RJ', 57, 'Dep Gama')
+        ) AS t(deputado_id, data_hora, situacao, condicao_eleitoral, descricao_status, partido, uf, legislatura_id, nome_parlamentar)
     """)
     con.execute("""
         CREATE OR REPLACE TABLE refined.despesas_ceap AS
         SELECT * FROM (
             VALUES
-            -- T1 e T2: Dep 101 (SP) com despesa em março e maio — 3 meses de exercício (abril sem despesa conta)
+            -- T1 e T2: Dep 101 (SP) sem histórico, despesa em março e maio — reserva de 3 meses (abril sem despesa conta)
             ('1', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn X', '01234567000199', 'NF1', 0,
              TIMESTAMP '2025-03-10 10:00:00', DECIMAL '500.00', DECIMAL '0.00', DECIMAL '500.00', 2025, 3, 0, 1, 1),
             ('2', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn Y', '99888777000166', 'NF2', 0,
              TIMESTAMP '2025-05-10 10:00:00', DECIMAL '1500.00', DECIMAL '0.00', DECIMAL '1500.00', 2025, 5, 0, 1, 1),
-            -- T3: Dep 102 (RJ) gasta o dobro do teto em um único mês — uso de 200%
+            -- T3: Dep 102 (RJ) gasta o dobro do teto do único mês em que exerceu — uso de 200%
             ('3', 'Dep Beta', '102', 'RJ', 'PB', 57, 1, 'DIVULGACAO', 'Forn X', '01234567000199', 'NF3', 0,
              TIMESTAMP '2025-01-10 10:00:00', DECIMAL '4000.00', DECIMAL '0.00', DECIMAL '4000.00', 2025, 1, 0, 1, 1),
             -- T4: Liderança (sem deputado, UF e partido) — fora de qualquer teto individual
             ('4', 'LIDERANÇA DO PA', NULL, NULL, NULL, 57, 1, 'DIVULGACAO', 'Forn Y', '99888777000166', 'NF4', 0,
              TIMESTAMP '2025-01-10 10:00:00', DECIMAL '800.00', DECIMAL '0.00', DECIMAL '800.00', 2025, 1, 0, 1, 1),
-            -- T5 e T6: Dep 103 (RJ) divide R$ 600 igualmente entre X e Y — empate vai para o menor documento (X)
+            -- T5 e T6: Dep 103 (RJ) divide R$ 600 igualmente entre X e Y — empate vai para o menor documento (X);
+            -- teto de meio mês (R$ 1.000) — uso de 60%
             ('5', 'Dep Gama', '103', 'RJ', 'PB', 57, 1, 'DIVULGACAO', 'Forn Y', '99888777000166', 'NF5', 0,
              TIMESTAMP '2025-02-10 10:00:00', DECIMAL '300.00', DECIMAL '0.00', DECIMAL '300.00', 2025, 2, 0, 1, 1),
             ('6', 'Dep Gama', '103', 'RJ', 'PB', 57, 1, 'DIVULGACAO', 'Forn X', '01234567000199', 'NF6', 0,
@@ -246,7 +288,7 @@ def _trocar_por_cenario_de_teto(con: duckdb.DuckDBPyConnection) -> None:
     """)
 
 
-def test_marts_medem_uso_do_teto_por_meses_de_exercicio_e_concentracao(
+def test_marts_medem_uso_do_teto_por_dias_de_exercicio_e_concentracao(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     banco = tmp_path / "teto.duckdb"
@@ -266,7 +308,8 @@ def test_marts_medem_uso_do_teto_por_meses_de_exercicio_e_concentracao(
         m04 = {
             linha[0]: linha[1:]
             for linha in con.execute("""
-                SELECT deputado_id, meses_exercicio, pct_teto_utilizado, maior_fornecedor, pct_maior_fornecedor
+                SELECT deputado_id, meses_exercicio, pct_teto_utilizado, maior_fornecedor, pct_maior_fornecedor,
+                       fonte_periodo
                 FROM marts.ranking_deputados
             """).fetchall()
         }
@@ -283,18 +326,80 @@ def test_marts_medem_uso_do_teto_por_meses_de_exercicio_e_concentracao(
     finally:
         con.close()
 
-    # Percentuais saem de round(..., 2) em DOUBLE; a comparação exata vale porque o literal é o mesmo double.
-    # 101: R$ 2.000 em 3 meses de R$ 1.000; 102: R$ 4.000 em 1 mês de R$ 2.000; 103: R$ 600 em 1 mês de R$ 2.000
-    assert m04["101"] == (3, 66.67, "Forn Y", 75.0)
-    assert m04["102"] == (1, 200.0, "Forn X", 100.0)
-    assert m04["103"] == (1, 30.0, "Forn X", 50.0)
+    # Percentuais e meses saem de round(..., 2) em DOUBLE; a comparação exata vale porque o literal é o mesmo double.
+    # 101: R$ 2.000 em 3 meses de R$ 1.000 (reserva); 102: R$ 4.000 em janeiro de R$ 2.000;
+    # 103: R$ 600 em 14 dias de fevereiro (R$ 1.000)
+    assert m04["101"] == (3.0, 66.67, "Forn Y", 75.0, "aproximado")
+    assert m04["102"] == (1.0, 200.0, "Forn X", 100.0, "oficial")
+    assert m04["103"] == (0.5, 60.0, "Forn X", 50.0, "oficial")
     assert None not in m04
 
-    # RJ soma antes de dividir: R$ 4.600 / (2 deputado-meses × R$ 2.000) = 115%, não a média de 200% e 30%
-    assert m06 == {"SP": (3, 66.67), "RJ": (2, 115.0)}
-    assert m10 == {"PA": 66.67, "PB": 115.0, "LIDERANCAS": None}
-    # R$ 6.600 / R$ 7.000 de teto; só o 102 passa de 90%
-    assert m11 == (94.29, 3, 1)
+    # RJ soma antes de dividir: R$ 4.600 / (1,5 deputado-mês × R$ 2.000) = 153,33%, não a média de 200% e 60%
+    assert m06 == {"SP": (3.0, 66.67), "RJ": (1.5, 153.33)}
+    assert m10 == {"PA": 66.67, "PB": 153.33, "LIDERANCAS": None}
+    # R$ 6.600 / R$ 6.000 de teto; só o 102 passa de 90%
+    assert m11 == (110.0, 3, 1)
+
+
+def test_marts_separam_anos_e_trocam_limite_no_meio_do_mes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    banco = tmp_path / "anos.duckdb"
+    monkeypatch.setattr(db, "CAMINHO_BANCO", banco)
+
+    con = db.conectar()
+    try:
+        _criar_refined_sintetico(con)
+        # SP passa de R$ 1.000 para R$ 1.280 em 20/02/2026, como no reajuste do Ato da Mesa n. 244/2026
+        con.execute("""
+            CREATE OR REPLACE TABLE refined.limites_cota_uf AS
+            SELECT * FROM (
+                VALUES ('SP', DATE '2023-02-01', DECIMAL '1000.00', '270/2023'),
+                       ('SP', DATE '2026-02-20', DECIMAL '1280.00', '244/2026')
+            ) AS t(uf, vigencia_inicio, limite_mensal_cota, ato_da_mesa)
+        """)
+        # Dep 101 em exercício desde a posse da legislatura
+        con.execute("""
+            INSERT INTO refined.historico_deputados VALUES
+            ('101', TIMESTAMP '2023-02-01 12:05:00', 'Exercício', 'Titular', 'Entrada - Posse de Eleito Titular',
+             'PA', 'SP', 57, 'Dep Alfa')
+        """)
+        # Uma nota de fevereiro/2026 do Dep 101 a fornecedor limpo, além das notas de maio/2025 da base
+        con.execute("""
+            INSERT INTO refined.despesas_ceap VALUES
+            ('7', 'Dep Alfa', '101', 'SP', 'PA', 57, 3, 'PASSAGEM', 'Cia Aerea', '99888777000166', 'NF7', 0,
+             TIMESTAMP '2026-02-25 08:00:00', DECIMAL '2090.00', DECIMAL '0.00', DECIMAL '2090.00', 2026, 2, 0, 1, 1)
+        """)
+    finally:
+        con.close()
+
+    marts.executar_marts()
+
+    con = db.conectar()
+    try:
+        teto = {
+            (linha[0], linha[1]): linha[2:]
+            for linha in con.execute("""
+                SELECT ano, deputado_id, dias_exercicio, meses_exercicio, teto_periodo, pct_teto_utilizado, fonte_periodo
+                FROM marts.teto_deputado_ano
+            """).fetchall()
+        }
+        kpis = con.execute("SELECT ano, despesa_total_reais FROM marts.kpis ORDER BY ano").fetchall()
+        posicoes = con.execute("SELECT ano, posicao_maior_gasto FROM marts.ranking_deputados ORDER BY ano").fetchall()
+        pct_categorias = con.execute(
+            "SELECT ano, sum(pct_total) FROM marts.gastos_por_categoria GROUP BY ano ORDER BY ano"
+        ).fetchall()
+    finally:
+        con.close()
+
+    # 2025 vai até maio (último mês com dados): 151 dias × R$ 1.000/mês = R$ 5.000 de teto para R$ 1.200 gastos
+    assert teto[(2025, "101")] == (151, 5.0, 5000.0, 24.0, "oficial")
+    # 2026 vai até fevereiro: janeiro R$ 1.000 + 19 dias a R$ 1.000/28 + 9 dias a R$ 1.280/28 = R$ 2.090
+    assert teto[(2026, "101")] == (59, 2.0, 2090.0, 100.0, "oficial")
+    assert kpis == [(2025, Decimal("1200.00")), (2026, Decimal("2090.00"))]
+    # Ranking e percentuais recomeçam em cada ano
+    assert posicoes == [(2025, 1), (2026, 1)]
+    assert pct_categorias == [(2025, 100.0), (2026, 100.0)]
 
 
 def test_mart_apagado_desaparece_e_mart_vazio_faz_rollback(
