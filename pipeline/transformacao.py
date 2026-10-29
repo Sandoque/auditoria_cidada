@@ -2,12 +2,14 @@
 
 SPEC DO MÓDULO (Fonte da Verdade):
 1. ESCOPO:
-   Lê de `raw` e escreve em `refined` para quatro tabelas:
-   - refined.despesas_ceap (171.059 linhas)
-   - refined.deputados     (7.889 linhas)
-   - refined.sancoes_ceis  (23.739 linhas)
-   - refined.cotas_uf      (27 linhas)
-   Total esperado: 202.714 linhas. Nunca altera o schema `raw`.
+   Lê de `raw` e escreve em `refined` para seis tabelas:
+   - refined.despesas_ceap       (todos os anos desde 2025; 171.059 linhas no retrato de 2025)
+   - refined.deputados           (7.889 linhas)
+   - refined.sancoes_ceis        (CEIS do dia do download)
+   - refined.cotas_uf            (27 linhas, só o cadastro da UF)
+   - refined.limites_cota_uf     (uma linha por UF e início de vigência; Etapa 6)
+   - refined.historico_deputados (um evento de mandato por linha; Etapa 6)
+   Nunca altera o schema `raw`.
    `raw.sancoes_cnep` fica de fora (documentada em specs/sancoes_cnep.md).
 
 2. NOMES E PADRONIZAÇÃO:
@@ -23,6 +25,8 @@ SPEC DO MÓDULO (Fonte da Verdade):
    - `data_emissao` -> TIMESTAMP com formato declarado '%Y-%m-%dT%H:%M:%S'.
    - Datas em deputados -> DATE com formato declarado '%Y-%m-%d'.
    - Datas em sancoes_ceis -> DATE com formato declarado '%d/%m/%Y'.
+   - vigencia_inicio em limites_cota_uf -> DATE com formato declarado '%Y-%m-%d'.
+   - data_hora em historico_deputados -> TIMESTAMP com formato declarado '%Y-%m-%dT%H:%M'.
    - Valores monetários -> DECIMAL(12,2) (nunca DOUBLE).
    - Proibido usar try_strptime ou TRY_CAST: qualquer valor que falhe na conversão
      interrompe a execução com mensagem clara e sys.exit(1).
@@ -47,6 +51,8 @@ TABELAS_ENTRADA: tuple[str, ...] = (
     "deputados",
     "sancoes_ceis",
     "cotas_uf",
+    "limites_cota_uf",
+    "historico_deputados",
 )
 
 # SQLs de transformação com formatos declarados explicitamente (sem TRY_CAST / try_strptime)
@@ -136,9 +142,29 @@ SQL_TRANSFORMACAO: dict[str, str] = {
             CAST(codigo_ibge_uf AS INTEGER) AS codigo_ibge,
             sigla_uf AS uf,
             nome_uf AS nome_estado,
-            regiao AS regiao,
-            CAST(limite_mensal_cota AS DECIMAL(12,2)) AS limite_mensal_cota
+            regiao AS regiao
         FROM raw.cotas_uf
+    """,
+    "limites_cota_uf": """
+        SELECT DISTINCT
+            sigla_uf AS uf,
+            strptime(vigencia_inicio, '%Y-%m-%d')::DATE AS vigencia_inicio,
+            CAST(limite_mensal_cota AS DECIMAL(12,2)) AS limite_mensal_cota,
+            ato_da_mesa
+        FROM raw.limites_cota_uf
+    """,
+    "historico_deputados": """
+        SELECT DISTINCT
+            id AS deputado_id,
+            strptime(dataHora, '%Y-%m-%dT%H:%M') AS data_hora,
+            situacao,
+            condicaoEleitoral AS condicao_eleitoral,
+            descricaoStatus AS descricao_status,
+            siglaPartido AS partido,
+            siglaUf AS uf,
+            CAST(idLegislatura AS INTEGER) AS legislatura_id,
+            nome AS nome_parlamentar
+        FROM raw.historico_deputados
     """,
 }
 
@@ -146,6 +172,7 @@ CHAVES_UNICAS: dict[str, str] = {
     "deputados": "deputado_id",
     "sancoes_ceis": "sancao_id",
     "cotas_uf": "uf",
+    "limites_cota_uf": "uf, vigencia_inicio",
 }
 
 

@@ -31,6 +31,7 @@ import html
 import re
 import unicodedata
 from collections.abc import Iterable
+from datetime import date
 from pathlib import Path
 from typing import NamedTuple
 
@@ -270,12 +271,51 @@ def html_cartoes(lista: Iterable[Cartao]) -> str:
 
 
 NOTA_TETO = (
-    "% do teto = gasto ÷ (limite mensal da UF × meses entre a primeira e a última despesa do"
-    " deputado), com os limites do Ato da Mesa nº 270/2023, vigentes em todo o ano de 2025."
-    " Pode passar de 100%: até quatro trechos aéreos por mês são reembolsados além da cota, e"
-    " meses sem despesa no início ou no fim do mandato ficam fora da conta. Concentração alta"
-    " em um fornecedor é um ponto de atenção, não indício de irregularidade."
+    "% do teto = gasto ÷ teto do período. Cada dia de efetivo exercício do mandato (histórico"
+    " oficial da Câmara) vale o limite mensal da UF vigente naquele dia dividido pelos dias do mês,"
+    " como manda o art. 11 do Ato da Mesa nº 43/2009; os limites são os dos Atos nº 270/2023 e"
+    " nº 244/2026. Pode passar de 100%: líderes, vice-líderes e presidentes de comissão têm"
+    " adicional de cota, e até quatro trechos aéreos por mês são reembolsados além dela."
+    " Concentração alta em um fornecedor é um ponto de atenção, não indício de irregularidade."
 )
+
+AVISO_ANO_PARCIAL = (
+    "Ano em andamento: a nota pode ser apresentada até 90 dias depois da despesa (art. 4º, § 12,"
+    " do Ato da Mesa nº 43/2009), então os meses mais recentes ainda vão crescer e o uso do teto"
+    " tende a subir."
+)
+
+
+class Periodo(NamedTuple):
+    ano: int
+    primeiro_mes: pd.Timestamp
+    ultimo_mes: pd.Timestamp
+    parcial: bool
+
+
+def anos(dados: dict[str, pd.DataFrame]) -> list[int]:
+    """Anos com dados em marts.kpis, do mais recente para o mais antigo."""
+    return sorted((int(a) for a in dados["kpis"]["ano"].unique()), reverse=True)
+
+
+def do_ano(dados: dict[str, pd.DataFrame], ano: int) -> dict[str, pd.DataFrame]:
+    """Recorta cada mart para um ano (só filtro de linhas pela coluna `ano`)."""
+    return {nome: df[df["ano"] == ano].reset_index(drop=True) for nome, df in dados.items()}
+
+
+def periodo(dados_ano: dict[str, pd.DataFrame], hoje: date | None = None) -> Periodo:
+    """Primeiro e último mês com dados do ano e se ele ainda está parcial (prazo de 90 dias)."""
+    meses = dados_ano["gastos_mensais"]["mes"].sort_values()
+    primeiro, ultimo = pd.Timestamp(meses.iloc[0]), pd.Timestamp(meses.iloc[-1])
+    hoje = hoje or date.today()
+    parcial = ultimo.month < 12 or (hoje - date(ultimo.year, 12, 31)).days < 90
+    return Periodo(ultimo.year, primeiro, ultimo, parcial)
+
+
+def texto_periodo(p: Periodo) -> str:
+    sufixo = " (parcial)" if p.parcial else ""
+    return f"Ano de {p.ano} · dados de {_mes_abrev(p.primeiro_mes)} a {_mes_abrev(p.ultimo_mes)}{sufixo}"
+
 
 COLUNAS_TABELA_DEPUTADOS: dict[str, str] = {
     "nome_parlamentar": "Deputado",
@@ -421,16 +461,18 @@ def _aplicar_layout_base(
     return fig
 
 
-def grafico_gastos_mensais(df: pd.DataFrame) -> go.Figure:
-    """01 · Linha de desembolso mensal da Cota Parlamentar."""
+def grafico_gastos_mensais(df: pd.DataFrame, parcial: bool = False) -> go.Figure:
+    """01 · Linha de desembolso mensal da Cota Parlamentar (num ano parcial, sem apontar 'piso')."""
     dados = df.sort_values("mes").copy()
     subtitulo = ""
     if not dados.empty:
         pico = dados.loc[dados["despesa_liquida"].idxmax()]
         piso = dados.loc[dados["despesa_liquida"].idxmin()]
-        subtitulo = (
-            f"Pico em {_mes_abrev(pico['mes'])} ({reais_compacto(pico['despesa_liquida'])})"
-            f" · piso em {_mes_abrev(piso['mes'])} ({reais_compacto(piso['despesa_liquida'])})"
+        subtitulo = f"Pico em {_mes_abrev(pico['mes'])} ({reais_compacto(pico['despesa_liquida'])})"
+        subtitulo += (
+            " · meses recentes ainda recebem notas"
+            if parcial
+            else f" · piso em {_mes_abrev(piso['mes'])} ({reais_compacto(piso['despesa_liquida'])})"
         )
     fig = go.Figure()
     fig.add_trace(

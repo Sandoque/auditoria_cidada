@@ -1,19 +1,21 @@
 -- Quantos fornecedores receberam um pagamento único vs. pagamentos recorrentes?
--- Grão: uma faixa de quantidade de recebimentos por fornecedor.
+-- Grão: uma faixa de quantidade de recebimentos por fornecedor em um ano (ano, ordem_faixa).
 -- Fornecedor é o CNPJ/CPF normalizado (documento_fornecedor), nunca a razão social.
 WITH pagamentos_por_fornecedor AS (
-    -- Grão: um fornecedor (documento_fornecedor).
+    -- Grão: um fornecedor em um ano (ano, documento_fornecedor).
     SELECT
+        ano_competencia    AS ano,
         documento_fornecedor,
         count(*)           AS qtd_pagamentos,
         sum(valor_liquido) AS despesa_liquida
     FROM refined.despesas_ceap
     WHERE valor_liquido > 0
-    GROUP BY documento_fornecedor
+    GROUP BY ano_competencia, documento_fornecedor
 ),
 faixas AS (
-    -- Grão: um fornecedor classificado na sua faixa de recorrência.
+    -- Grão: um fornecedor em um ano, classificado na sua faixa de recorrência.
     SELECT
+        ano,
         CASE
             WHEN qtd_pagamentos = 1 THEN 1
             WHEN qtd_pagamentos = 2 THEN 2
@@ -36,12 +38,13 @@ faixas AS (
     FROM pagamentos_por_fornecedor
 )
 SELECT
+    ano,
     ordem_faixa,
     faixa_pagamentos,
-    count(*)                                                   AS fornecedores,
-    round(100.0 * count(*) / sum(count(*)) OVER (), 2)         AS pct_fornecedores,
-    sum(despesa_liquida)                                       AS despesa_liquida,
-    round(100.0 * sum(despesa_liquida) / sum(sum(despesa_liquida)) OVER (), 2) AS pct_despesa
+    count(*)                                                                     AS fornecedores,
+    round(100.0 * count(*) / sum(count(*)) OVER (PARTITION BY ano), 2)           AS pct_fornecedores,
+    sum(despesa_liquida)                                                         AS despesa_liquida,
+    round(100.0 * sum(despesa_liquida) / sum(sum(despesa_liquida)) OVER (PARTITION BY ano), 2) AS pct_despesa
 FROM faixas
-GROUP BY ordem_faixa, faixa_pagamentos
-ORDER BY ordem_faixa
+GROUP BY ano, ordem_faixa, faixa_pagamentos
+ORDER BY ano, ordem_faixa

@@ -1,5 +1,5 @@
 -- Quais fornecedores inscritos no CEIS receberam pagamentos da Cota Parlamentar, e com que alcance de sanção?
--- Grão: um fornecedor sancionado no CEIS que recebeu recursos da CEAP (documento_fornecedor).
+-- Grão: um fornecedor sancionado no CEIS que recebeu recursos da CEAP em um ano (ano, documento_fornecedor).
 -- Consolida sancoes_ceis por documento antes do JOIN para evitar multiplicação 1:N.
 WITH resumo_ceis AS (
     -- Grão: um documento_sancionado no CEIS.
@@ -37,6 +37,7 @@ pagamentos_ceis AS (
     -- Grão: um lançamento válido da CEAP pago a fornecedor listado no CEIS.
     -- A subconsulta escalar devolve no máximo um valor por nota (NULL quando nenhuma sanção está vigente).
     SELECT
+        d.ano_competencia AS ano,
         d.documento_fornecedor,
         d.nome_fornecedor,
         d.deputado_id,
@@ -56,6 +57,7 @@ pagamentos_ceis AS (
     WHERE d.valor_liquido > 0
 )
 SELECT
+    ano,
     documento_fornecedor,
     max(nome_fornecedor)                                         AS nome_fornecedor,
     max(qtd_sancoes_ceis)                                        AS qtd_sancoes_ceis,
@@ -72,5 +74,5 @@ SELECT
         WHEN 1 THEN 'restrita'
     END                                                          AS alcance_sancao_vigente
 FROM pagamentos_ceis
-GROUP BY documento_fornecedor
-ORDER BY valor_recebido_total DESC, documento_fornecedor
+GROUP BY ano, documento_fornecedor
+ORDER BY ano, valor_recebido_total DESC, documento_fornecedor

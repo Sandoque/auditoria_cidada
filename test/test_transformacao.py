@@ -138,11 +138,33 @@ def _popular_raw_sintetico(con: duckdb.DuckDBPyConnection) -> None:
                 "sigla_uf": "SP",
                 "nome_uf": "São Paulo",
                 "regiao": "Sudeste",
-                "limite_mensal_cota": "41150.25",
             }
         ]
     )
     db.gravar(con, df_uf, "raw", "cotas_uf")
+
+    # Limite com vigência em formato ISO e um evento de mandato com data e hora sem segundos
+    df_limites = pd.DataFrame(
+        [{"sigla_uf": "SP", "vigencia_inicio": "2023-02-01", "limite_mensal_cota": "42837.33", "ato_da_mesa": "270/2023"}]
+    )
+    db.gravar(con, df_limites, "raw", "limites_cota_uf")
+
+    df_historico = pd.DataFrame(
+        [
+            {
+                "id": "101",
+                "nome": "Dep Alfa",
+                "siglaPartido": "PA",
+                "siglaUf": "SP",
+                "idLegislatura": "57",
+                "dataHora": "2023-02-01T12:05",
+                "situacao": "Exercício",
+                "condicaoEleitoral": "Titular",
+                "descricaoStatus": "Entrada - Posse de Eleito Titular",
+            }
+        ]
+    )
+    db.gravar(con, df_historico, "raw", "historico_deputados")
 
 
 def test_transformacao_deduplica_converte_tipos_e_trata_uf_na(
@@ -158,7 +180,7 @@ def test_transformacao_deduplica_converte_tipos_e_trata_uf_na(
         con.close()
 
     total = transformacao.executar_transformacao()
-    assert total == 5  # 2 despesas (1 duplicata removida) + 1 deputado + 1 ceis + 1 uf
+    assert total == 7  # 2 despesas (1 duplicata removida) + 1 deputado + 1 ceis + 1 uf + 1 limite + 1 evento
 
     con = db.conectar()
     try:
@@ -170,6 +192,9 @@ def test_transformacao_deduplica_converte_tipos_e_trata_uf_na(
         doc_limpo = con.execute(
             "SELECT documento_fornecedor FROM refined.despesas_ceap WHERE documento_id = '100'"
         ).fetchall()[0][0]
+        tipos_limite = {r[0]: r[1] for r in con.execute("DESCRIBE refined.limites_cota_uf").fetchall()}
+        tipos_hist = {r[0]: r[1] for r in con.execute("DESCRIBE refined.historico_deputados").fetchall()}
+        colunas_uf = [r[0] for r in con.execute("DESCRIBE refined.cotas_uf").fetchall()]
     finally:
         con.close()
 
@@ -178,6 +203,11 @@ def test_transformacao_deduplica_converte_tipos_e_trata_uf_na(
     assert soma_liq == Decimal("1150.25")
     assert uf_lid is None
     assert doc_limpo == "01234567000199"
+    assert tipos_limite["vigencia_inicio"] == "DATE"
+    assert tipos_limite["limite_mensal_cota"] == "DECIMAL(12,2)"
+    assert tipos_hist["data_hora"] == "TIMESTAMP"
+    assert tipos_hist["legislatura_id"] == "INTEGER"
+    assert "limite_mensal_cota" not in colunas_uf
 
 
 def test_transformacao_data_invalida_encerra_sem_fabricar_nulo(

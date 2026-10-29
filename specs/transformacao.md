@@ -1,5 +1,7 @@
 # Spec da Etapa 2 — Transformação (`pipeline/transformacao.py`)
 
+> **Atualizada pela Etapa 6** (`specs/multianual.md`): entram `refined.limites_cota_uf` e `refined.historico_deputados`, e `refined.cotas_uf` perde `limite_mensal_cota`. As contagens dos critérios de aceite abaixo são as do retrato de 2025.
+
 ## CONTEXTO
 Construção da camada `refined` do pipeline de Auditoria Cidadã e Compliance sobre dados da Câmara dos Deputados (CEAP 2025 e Deputados), CGU (CEIS) e IBGE (`cotas_uf`). Trabalho com *spec-driven development*: a spec abaixo é a fonte da verdade e o código é consequência dela.
 

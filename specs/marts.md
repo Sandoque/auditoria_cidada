@@ -1,5 +1,7 @@
 # Spec da Etapa 3 — Executor de Marts (`pipeline/marts.py`) e Qualidade de Dados (`pipeline/qualidade.py`)
 
+> **Atualizada pela Etapa 6** (`specs/multianual.md`): todos os marts ganham `ano` no grão, e o teto passa a ser calculado por dia de efetivo exercício em `marts.teto_deputado_ano` (seção 8 abaixo descreve a aproximação anterior, que virou reserva).
+
 ## CONTEXTO
 Construção da camada `marts` do pipeline de Auditoria Cidadã e Compliance. Os doze arquivos `.sql` moram em `sql/marts/` e contêm toda a regra de negócio, com o grão declarado na primeira linha de cada arquivo e em cada CTE. `pipeline/marts.py` apenas orquestra a execução transacional dos arquivos `.sql`.
 

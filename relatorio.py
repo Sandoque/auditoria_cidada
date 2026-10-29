@@ -4,8 +4,10 @@ SPEC DO MÓDULO (Fonte da Verdade):
 1. Lê os marts com painel.ler(), desenha os cartões com painel.cartoes() e
    painel.html_cartoes(), a tabela de deputados com painel.tabela_deputados() e
    os sete gráficos com as funções de painel.py. Não importa streamlit.
-2. Escreve relatorio.html na raiz do projeto com as cinco faixas do painel na
-   mesma ordem. A biblioteca Plotly vem do CDN uma única vez no primeiro gráfico
+2. Escreve uma página por ano com as cinco faixas do painel na mesma ordem:
+   relatorio.html para o ano mais recente e relatorio_AAAA.html para cada ano
+   anterior, todas com links entre os anos e aviso quando o ano está parcial.
+   Em cada página, a biblioteca Plotly vem do CDN uma única vez no primeiro gráfico
    da página (include_plotlyjs="cdn") e nos demais include_plotlyjs=False, com
    div_id fixos ("g01" a "g07", na ordem da página) para determinismo entre execuções.
 3. A tabela de deputados vem renderizada no HTML (funciona sem JavaScript) e os
@@ -106,7 +108,7 @@ def _html_tabela_deputados(tabela: pd.DataFrame) -> str:
             f"<tr><td>{html.escape(str(r['Deputado']))}"
             f"<td>{html.escape(str(r['Partido']))}"
             f"<td>{html.escape(str(r['UF']))}"
-            f"<td>{painel.numero(r['Meses'])}"
+            f"<td>{painel.numero(r['Meses'], 1)}"
             f"<td>{painel.reais(r['Gasto (R$)'])}"
             f"<td>{barra}{_ou_traco(uso, painel.pct)}"
             f"<td>{painel.numero(r['Fornecedores'])}"
@@ -117,11 +119,23 @@ def _html_tabela_deputados(tabela: pd.DataFrame) -> str:
     return f"<thead><tr>{cabecalho}</thead>\n<tbody>\n" + "\n".join(linhas) + "\n</tbody>"
 
 
-def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
+def _caminho_do_ano(caminho_saida: Path, ano: int, mais_recente: int) -> Path:
+    return caminho_saida if ano == mais_recente else caminho_saida.with_name(f"{caminho_saida.stem}_{ano}.html")
 
-    dados = painel.ler()
+
+def _html_navegacao(ano_atual: int, anos: list[int], caminho_saida: Path) -> str:
+    itens = [
+        f'<strong aria-current="page">{a}</strong>'
+        if a == ano_atual
+        else f'<a href="{_caminho_do_ano(caminho_saida, a, anos[0]).name}">{a}</a>'
+        for a in anos
+    ]
+    return '<nav class="anos">Ano: ' + " · ".join(itens) + "</nav>"
+
+
+def _html_pagina(dados: dict[str, pd.DataFrame], ano: int, anos: list[int], caminho_saida: Path) -> str:
+    periodo = painel.periodo(dados)
+    aviso = f'<p class="aviso">{html.escape(painel.AVISO_ANO_PARCIAL)}</p>' if periodo.parcial else ""
     html_cartoes = painel.html_cartoes(painel.cartoes(dados["kpis"].iloc[0]))
     ranking = dados["ranking_deputados"]
     tabela = painel.tabela_deputados(ranking)
@@ -133,7 +147,7 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
         painel.grafico_fornecedores_ceis(dados["fornecedores_sancionados"]),
         painel.grafico_glosas(dados["glosa_por_categoria"]),
         painel.grafico_pareto_fornecedores(dados["fornecedores_pareto"]),
-        painel.grafico_gastos_mensais(dados["gastos_mensais"]),
+        painel.grafico_gastos_mensais(dados["gastos_mensais"], parcial=periodo.parcial),
     ]
     g = [
         fig.to_html(full_html=False, include_plotlyjs="cdn" if i == 0 else False, div_id=f"g{i + 1:02d}")
@@ -141,13 +155,12 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
     ]
 
     carimbo = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-    html_pagina = f"""<!doctype html>
+    return f"""<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Auditoria Cidadã · CEAP 2025 × Sanções CEIS/CGU</title>
+  <title>Auditoria Cidadã · CEAP {ano} × Sanções CEIS/CGU</title>
   <style>
     :root {{
       --bg: #f4f6f4;
@@ -199,6 +212,16 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
       padding: 8px;
     }}
     {_CSS_TABELA}
+    .anos {{ margin: 0 0 6px; font-size: 14px; color: var(--muted); }}
+    .anos a {{ color: #1a6b52; font-weight: 600; }}
+    .aviso {{
+      margin: 10px 0 0;
+      padding: 8px 12px;
+      border-left: 4px solid #b85c00;
+      background: var(--surface);
+      font-size: 13.5px;
+      color: var(--ink);
+    }}
     footer {{
       margin-top: 12px;
       font-size: 13px;
@@ -215,8 +238,10 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
 </head>
 <body>
   <header>
-    <h1>Auditoria Cidadã · Cota Parlamentar (CEAP 2025) × Sanções CEIS/CGU</h1>
-    <p class="sub">Visão da operação completa (jan/2025 a dez/2025) · Números lidos diretamente da camada marts</p>
+    {_html_navegacao(ano, anos, caminho_saida)}
+    <h1>Auditoria Cidadã · Cota Parlamentar (CEAP {ano}) × Sanções CEIS/CGU</h1>
+    <p class="sub">{painel.texto_periodo(periodo)} · Números lidos diretamente da camada marts</p>
+    {aviso}
   </header>
 
   {html_cartoes}
@@ -258,9 +283,22 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
 </body>
 </html>
 """
-    caminho_saida.write_text(html_pagina, encoding="utf-8")
-    tamanho_kb = caminho_saida.stat().st_size / 1024.0
-    print(f"✓ {caminho_saida} ({tamanho_kb:.1f} KB)")
+
+
+def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
+    """Grava uma página por ano e devolve o caminho da página do ano mais recente."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
+    dados_todos = painel.ler()
+    anos = painel.anos(dados_todos)
+    for ano in anos:
+        caminho = _caminho_do_ano(caminho_saida, ano, anos[0])
+        caminho.write_text(
+            _html_pagina(painel.do_ano(dados_todos, ano), ano, anos, caminho_saida), encoding="utf-8"
+        )
+        tamanho_kb = caminho.stat().st_size / 1024.0
+        print(f"✓ {caminho} ({tamanho_kb:.1f} KB)")
     return caminho_saida
 
 

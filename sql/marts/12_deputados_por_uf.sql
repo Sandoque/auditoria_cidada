@@ -1,6 +1,7 @@
 -- Quantos parlamentares atuaram e quanto gastaram por UF?
--- Grão: uma Unidade da Federação (uf).
+-- Grão: uma Unidade da Federação em um ano (ano, uf).
 SELECT
+    d.ano_competencia                      AS ano,
     u.uf,
     u.nome_estado,
     u.regiao,
@@ -11,5 +12,5 @@ FROM refined.cotas_uf      AS u
 JOIN refined.despesas_ceap AS d ON d.uf = u.uf
 WHERE d.valor_liquido > 0
   AND d.deputado_id IS NOT NULL
-GROUP BY u.uf, u.nome_estado, u.regiao
-ORDER BY despesa_liquida DESC
+GROUP BY d.ano_competencia, u.uf, u.nome_estado, u.regiao
+ORDER BY ano, despesa_liquida DESC

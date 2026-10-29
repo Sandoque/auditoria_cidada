@@ -34,6 +34,8 @@ TABELAS_REFINED_OBRIGATORIAS: tuple[str, ...] = (
     "deputados",
     "sancoes_ceis",
     "cotas_uf",
+    "limites_cota_uf",
+    "historico_deputados",
 )
 PADRAO_ARQUIVO = re.compile(r"^\d{2}_([A-Za-z_][A-Za-z0-9_]*)\.sql$")
 

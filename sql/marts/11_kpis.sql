@@ -1,8 +1,9 @@
 -- Cartões executivos do painel de Auditoria Cidadã e Compliance.
--- Grão: a operação inteira, uma linha. Cada CTE resumo_* também tem uma linha só (1 x 1 x 1 x 1 = 1).
+-- Grão: um ano (ano), uma linha por ano. Cada CTE resumo_* também tem uma linha por ano.
 WITH resumo_geral AS (
-    -- Grão: a operação inteira (lançamentos válidos).
+    -- Grão: um ano (lançamentos válidos).
     SELECT
+        ano_competencia                                           AS ano,
         round(sum(valor_liquido) / 1000000.0, 2)                  AS despesa_total_milhoes,
         sum(valor_liquido)                                        AS despesa_total_reais,
         round(avg(valor_liquido), 2)                              AS ticket_medio_nota,
@@ -13,6 +14,7 @@ WITH resumo_geral AS (
         count(DISTINCT documento_fornecedor)                      AS fornecedores_distintos
     FROM refined.despesas_ceap
     WHERE valor_liquido > 0
+    GROUP BY ano_competencia
 ),
 ceis_por_fornecedor AS (
     -- Grão: um documento_sancionado (CNPJ/CPF) no CEIS.
@@ -44,6 +46,7 @@ avaliacao_notas AS (
     -- Grão: um lançamento válido da CEAP.
     -- A subconsulta escalar devolve no máximo um valor por nota (NULL quando nenhuma sanção está vigente).
     SELECT
+        d.ano_competencia AS ano,
         d.documento_fornecedor,
         d.valor_liquido,
         c.documento_sancionado IS NOT NULL AS no_ceis,
@@ -60,8 +63,9 @@ avaliacao_notas AS (
     WHERE d.valor_liquido > 0
 ),
 resumo_ceis AS (
-    -- Grão: a operação inteira cruzada com o CEIS.
+    -- Grão: um ano cruzado com o CEIS.
     SELECT
+        ano,
         sum(CASE WHEN no_ceis THEN valor_liquido ELSE 0 END) AS despesa_fornecedores_ceis,
         sum(CASE WHEN nivel_alcance_vigente IS NOT NULL THEN valor_liquido ELSE 0 END) AS despesa_sancao_vigente,
         count(nivel_alcance_vigente) AS lancamentos_sancao_vigente,
@@ -76,53 +80,41 @@ resumo_ceis AS (
             2
         ) AS pct_valor_regular
     FROM avaliacao_notas
+    GROUP BY ano
 ),
 pagamentos_fornecedor AS (
-    -- Grão: um fornecedor com lançamento válido.
+    -- Grão: um fornecedor com lançamento válido em um ano.
     SELECT
+        ano_competencia AS ano,
         documento_fornecedor,
         count(*) AS qtd_pagamentos
     FROM refined.despesas_ceap
     WHERE valor_liquido > 0
-    GROUP BY documento_fornecedor
+    GROUP BY ano_competencia, documento_fornecedor
 ),
 resumo_recorrencia AS (
-    -- Grão: a operação inteira (percentual de fornecedores com 2 ou mais pagamentos).
+    -- Grão: um ano (percentual de fornecedores com 2 ou mais pagamentos).
     SELECT
+        ano,
         round(
             100.0 * count(*) FILTER (WHERE qtd_pagamentos > 1) / count(*),
             2
         ) AS pct_fornecedores_recorrentes
     FROM pagamentos_fornecedor
-),
-gasto_teto_deputado AS (
-    -- Grão: um deputado federal (mesma regra de marts.ranking_deputados).
-    -- meses_exercicio: meses entre a primeira e a última competência com despesa, inclusive.
-    SELECT
-        deputado_id,
-        max(uf)                                         AS uf,
-        sum(valor_liquido)                              AS despesa_liquida,
-        max(mes_competencia) - min(mes_competencia) + 1 AS meses_exercicio
-    FROM refined.despesas_ceap
-    WHERE valor_liquido > 0
-      AND deputado_id IS NOT NULL
-    GROUP BY deputado_id
+    GROUP BY ano
 ),
 resumo_teto AS (
-    -- Grão: a operação inteira (deputados com UF e, portanto, com teto).
+    -- Grão: um ano. Teto por dia de efetivo exercício, de marts.teto_deputado_ano.
     SELECT
-        round(
-            100.0 * sum(g.despesa_liquida) / sum(u.limite_mensal_cota * g.meses_exercicio),
-            2
-        ) AS pct_teto_utilizado_geral,
-        count(*) AS deputados_com_teto,
-        count(*) FILTER (
-            WHERE round(100.0 * g.despesa_liquida / (u.limite_mensal_cota * g.meses_exercicio), 2) >= 90
-        ) AS deputados_acima_90_teto
-    FROM gasto_teto_deputado AS g
-    JOIN refined.cotas_uf    AS u ON u.uf = g.uf
+        ano,
+        round(100.0 * sum(despesa_liquida) / sum(teto_periodo), 2) AS pct_teto_utilizado_geral,
+        count(*)                                                   AS deputados_com_teto,
+        count(*) FILTER (WHERE pct_teto_utilizado >= 90)           AS deputados_acima_90_teto
+    FROM marts.teto_deputado_ano
+    GROUP BY ano
 )
 SELECT
+    g.ano,
     g.despesa_total_milhoes,
     g.despesa_total_reais,
     g.ticket_medio_nota,
@@ -144,4 +136,8 @@ SELECT
     t.pct_teto_utilizado_geral,
     t.deputados_com_teto,
     t.deputados_acima_90_teto
-FROM resumo_geral AS g, resumo_ceis AS c, resumo_recorrencia AS r, resumo_teto AS t
+FROM resumo_geral            AS g
+JOIN resumo_ceis             AS c ON c.ano = g.ano
+JOIN resumo_recorrencia      AS r ON r.ano = g.ano
+LEFT JOIN resumo_teto        AS t ON t.ano = g.ano
+ORDER BY g.ano

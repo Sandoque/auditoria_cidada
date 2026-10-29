@@ -1,5 +1,6 @@
 """Testes unitários de `painel.py`, `relatorio.py` e `pipeline/qualidade.py`."""
 
+from datetime import date
 from pathlib import Path
 
 import duckdb
@@ -22,7 +23,10 @@ def _popular_refined_sintetico(con: duckdb.DuckDBPyConnection) -> None:
              TIMESTAMP '2025-05-10 10:00:00', DECIMAL '1000.00', DECIMAL '100.00', DECIMAL '900.00', 2025, 5, 0, 1, 1),
             -- Lançamento 2: Dep 101 em SP, fornecedor limpo
             ('2', 'Dep Alfa', '101', 'SP', 'PA', 57, 2, 'COMBUSTIVEL', 'Posto Limpo', '99888777000166', 'NF2', 0,
-             TIMESTAMP '2025-05-12 12:00:00', DECIMAL '300.00', DECIMAL '0.00', DECIMAL '300.00', 2025, 5, 0, 1, 1)
+             TIMESTAMP '2025-05-12 12:00:00', DECIMAL '300.00', DECIMAL '0.00', DECIMAL '300.00', 2025, 5, 0, 1, 1),
+            -- Lançamento 3: Dep 101 em 2026 — cria um segundo ano, que vira a página principal do relatório
+            ('3', 'Dep Alfa', '101', 'SP', 'PA', 57, 3, 'PASSAGEM', 'Cia Aerea', '99888777000166', 'NF3', 0,
+             TIMESTAMP '2026-02-10 08:00:00', DECIMAL '500.00', DECIMAL '0.00', DECIMAL '500.00', 2026, 2, 0, 1, 1)
         ) AS t(
             documento_id, nome_parlamentar, deputado_id, uf, partido, legislatura_id, subcota_id,
             categoria_despesa, nome_fornecedor, documento_fornecedor, numero_documento, tipo_documento_id,
@@ -48,8 +52,19 @@ def _popular_refined_sintetico(con: duckdb.DuckDBPyConnection) -> None:
     """)
     con.execute("""
         CREATE TABLE refined.cotas_uf AS
-        SELECT 35 AS codigo_ibge, 'SP' AS uf, 'São Paulo' AS nome_estado,
-               'Sudeste' AS regiao, DECIMAL '41150.25' AS limite_mensal_cota
+        SELECT 35 AS codigo_ibge, 'SP' AS uf, 'São Paulo' AS nome_estado, 'Sudeste' AS regiao
+    """)
+    con.execute("""
+        CREATE TABLE refined.limites_cota_uf AS
+        SELECT 'SP' AS uf, DATE '2023-02-01' AS vigencia_inicio,
+               DECIMAL '41150.25' AS limite_mensal_cota, '270/2023' AS ato_da_mesa
+    """)
+    # Sem histórico: o teto usa a reserva aproximada (meses com despesa)
+    con.execute("""
+        CREATE TABLE refined.historico_deputados (
+            deputado_id VARCHAR, data_hora TIMESTAMP, situacao VARCHAR, condicao_eleitoral VARCHAR,
+            descricao_status VARCHAR, partido VARCHAR, uf VARCHAR, legislatura_id INTEGER, nome_parlamentar VARCHAR
+        )
     """)
 
 
@@ -130,6 +145,19 @@ def test_tabela_deputados_filtra_ordena_e_busca_sem_acento() -> None:
     assert list(vazia.columns) == list(painel.COLUNAS_TABELA_DEPUTADOS.values())
 
 
+def test_periodo_marca_ano_parcial_pelo_ultimo_mes_e_pelo_prazo_de_90_dias() -> None:
+    # Ano fechado (jan a dez) e um ano em curso (jan a out), avaliados em datas diferentes
+    fechado = {"gastos_mensais": pd.DataFrame({"mes": pd.date_range("2025-01-01", "2025-12-01", freq="MS")})}
+    em_curso = {"gastos_mensais": pd.DataFrame({"mes": pd.date_range("2026-01-01", "2026-10-01", freq="MS")})}
+
+    assert painel.periodo(fechado, hoje=date(2026, 10, 29)).parcial is False
+    # Menos de 90 dias depois de 31/12 ainda chegam notas do ano anterior
+    assert painel.periodo(fechado, hoje=date(2026, 2, 15)).parcial is True
+    p = painel.periodo(em_curso, hoje=date(2026, 10, 29))
+    assert p.parcial is True
+    assert painel.texto_periodo(p) == "Ano de 2026 · dados de jan/2026 a out/2026 (parcial)"
+
+
 def test_painel_e_relatorio_sobre_banco_sintetico(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -146,9 +174,12 @@ def test_painel_e_relatorio_sobre_banco_sintetico(
         con.close()
 
     marts.executar_marts()
-    dados = painel.ler()
+    todos = painel.ler()
 
-    assert set(dados.keys()) == set(painel.MARTS_PAINEL)
+    assert set(todos.keys()) == set(painel.MARTS_PAINEL)
+    assert painel.anos(todos) == [2026, 2025]
+    dados = painel.do_ano(todos, 2025)
+    assert all((df["ano"] == 2025).all() for df in dados.values())
     assert len(painel.grafico_gastos_mensais(dados["gastos_mensais"]).data[0].x) == len(dados["gastos_mensais"])
     assert len(painel.grafico_categorias(dados["gastos_por_categoria"]).data[0].x) == len(dados["gastos_por_categoria"])
     assert len(painel.grafico_partidos(dados["gastos_por_partido"]).data[0].x) == len(dados["gastos_por_partido"])
@@ -179,15 +210,26 @@ def test_painel_e_relatorio_sobre_banco_sintetico(
         dados["gasto_medio_por_uf"]["pct_teto_utilizado"]
     )
 
-    assert arq_html_1.is_file()
-    assert arq_html_1.stat().st_size < 200 * 1024
-    pagina = arq_html_1.read_text(encoding="utf-8")
+    # O ano mais recente fica no caminho pedido; os anteriores ganham o sufixo _AAAA
+    pagina_2025 = tmp_path / "rel1_2025.html"
+    assert arq_html_1.is_file() and pagina_2025.is_file()
+    assert all(arq.stat().st_size < 200 * 1024 for arq in (arq_html_1, pagina_2025))
+    principal = arq_html_1.read_text(encoding="utf-8")
+    anterior = pagina_2025.read_text(encoding="utf-8")
+    assert "CEAP 2026" in principal and '<a href="rel1_2025.html">2025</a>' in principal
+    assert "CEAP 2025" in anterior and '<a href="rel1.html">2026</a>' in anterior
+    # 2026 só tem fevereiro: ano parcial, com aviso; 2025 só tem maio, também parcial pelo último mês
+    assert 'class="aviso"' in principal
     # A Faixa 2 traz o deputado sintético já renderizado (funciona sem JS) e o script dos filtros
-    assert "<tr><td>Dep Alfa<td>PA<td>SP<td>1<td>R$ 1.200,00<td>" in pagina
-    assert 'id="f-uf"' in pagina and "function filtrar()" in pagina
-    linhas_1 = [ln for ln in arq_html_1.read_text(encoding="utf-8").splitlines() if "<footer>" not in ln]
-    linhas_2 = [ln for ln in arq_html_2.read_text(encoding="utf-8").splitlines() if "<footer>" not in ln]
-    assert linhas_1 == linhas_2
+    assert "<tr><td>Dep Alfa<td>PA<td>SP<td>1,0<td>R$ 1.200,00<td>" in anterior
+    assert 'id="f-uf"' in anterior and "function filtrar()" in anterior
+    for primeira, segunda in ((arq_html_1, arq_html_2), (pagina_2025, tmp_path / "rel2_2025.html")):
+        linhas_1 = [ln for ln in primeira.read_text(encoding="utf-8").splitlines() if "<footer>" not in ln]
+        # Os links entre anos levam o nome do arquivo gerado; fora isso, as duas gerações são idênticas
+        linhas_2 = [
+            ln.replace("rel2", "rel1") for ln in segunda.read_text(encoding="utf-8").splitlines() if "<footer>" not in ln
+        ]
+        assert linhas_1 == linhas_2
 
 
 def test_qualidade_detecta_quebra_de_reconciliacao(
