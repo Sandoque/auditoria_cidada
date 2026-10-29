@@ -7,6 +7,8 @@ Regra central: este arquivo não calcula nenhum indicador; apenas lê os DataFra
 prontos via painel.ler(), formata os cartões e exibe as figuras Plotly em 4 faixas.
 """
 
+import importlib
+
 import pandas as pd
 import streamlit as st
 
@@ -52,13 +54,6 @@ _CSS_ALTO_CONTRASTE = """
     font-weight: 700 !important;
     font-size: 1.15rem !important;
   }
-  [data-testid="stPlotlyChart"] {
-    background-color: #FFFFFF !important;
-    border: 1px solid #CBD5E1 !important;
-    border-radius: 8px !important;
-    padding: 6px !important;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
-  }
   .stButton > button {
     background-color: #1A6B52 !important;
     color: #FFFFFF !important;
@@ -78,6 +73,7 @@ def carregar_dados() -> dict[str, pd.DataFrame]:
 
 
 def renderizar_pagina() -> None:
+    importlib.reload(painel)
     st.markdown(_CSS_ALTO_CONTRASTE, unsafe_allow_html=True)
 
     col_titulo, col_botao = st.columns([5, 1])
