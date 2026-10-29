@@ -1,6 +1,12 @@
 # Pipeline de Auditoria Cidadã e Compliance · CEAP (Câmara) × CEIS/CNEP (CGU)
 
+[![CI · Testes e Qualidade de Código](https://github.com/Sandoque/auditoria_cidada/actions/workflows/ci.yml/badge.svg)](https://github.com/Sandoque/auditoria_cidada/actions/workflows/ci.yml)
+
+🔗 **Painel Executivo Online (GitHub Pages)**: **[Abrir `relatorio.html` no navegador](https://sandoque.github.io/auditoria_cidada/relatorio.html)**
+
 Pipeline completo de Engenharia de Dados construído do zero com **Spec-Driven Development**, **Python**, **DuckDB**, **SQL**, **Streamlit**, **Plotly** e **Pytest** para auditar os desembolsos da **Cota para Exercício da Atividade Parlamentar (CEAP 2025)** cruzados com o **Cadastro Nacional de Empresas Inidôneas e Suspensas (CEIS/CGU)**, o **Cadastro de Deputados** e os **Limites Oficiais de Cota por UF (IBGE/Câmara)**.
+
+![Rascunho do Painel em Grade de 12 Colunas](design/rascunho.png)
 
 ---
 
