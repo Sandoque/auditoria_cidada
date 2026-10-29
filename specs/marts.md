@@ -67,3 +67,22 @@ Construção da camada `marts` do pipeline de Auditoria Cidadã e Compliance. Os
 ### 7. QUALIDADE (`pipeline/qualidade.py`)
 - **As partes somam o todo**: em `marts.conformidade_ceis`, `federal + sem_info + restrita = despesa_sancao_vigente`, em valor e em lançamentos.
 - **Dois caminhos concordam**: os três valores por alcance de `marts.conformidade_ceis` batem centavo por centavo com os de `marts.kpis`.
+
+---
+
+## SPEC DO USO DO TETO DA COTA (marts `04`, `06`, `10` e `11`)
+
+### 8. TETO, MESES DE EXERCÍCIO E CONCENTRAÇÃO
+- **Teto mensal**: `refined.cotas_uf.limite_mensal_cota` da UF de representação do deputado, conforme o Anexo I do Ato da Mesa n. 270/2023, vigente durante todo o ano de 2025. O saldo não usado acumula dentro do exercício, por isso a comparação é sempre anual.
+- **Meses de exercício** (aproximação): número de meses entre o primeiro e o último mês de competência com despesa do deputado, inclusive (`max(mes_competencia) - min(mes_competencia) + 1`).
+  - *Motivo*: 86 dos 562 deputados (suplentes e titulares que saíram) não exerceram o ano inteiro. Dividir o gasto deles pelo teto de 12 meses fazia UFs com muita troca de mandato parecerem econômicas (AP: 14 deputados para 8 cadeiras). O intervalo entre a primeira e a última despesa tolera meses sem despesa no meio do mandato; os dados não trazem as datas oficiais de posse.
+- **Uso do teto (%)**: `100 × gasto ÷ soma(limite_mensal_cota × meses de exercício)`, sempre somando numerador e denominador antes de dividir (nunca média de percentuais).
+  - Pode passar de 100%: o art. 2º, § 3º, do Ato da Mesa n. 43/2009 (redação do Ato n. 270/2023) reembolsa até quatro trechos aéreos por mês **além** da cota, e meses sem despesa no início ou no fim do mandato encurtam o denominador.
+  - Lideranças partidárias (`deputado_id IS NULL`) não têm teto individual e ficam fora do cálculo.
+- **Concentração em fornecedor**: participação do maior fornecedor (`documento_fornecedor`) no gasto do deputado. Em caso de empate, vence o menor `documento_fornecedor`. Concentração alta é um ponto de atenção, não indício de irregularidade.
+- Colunas novas:
+  - `marts.ranking_deputados`: `meses_exercicio`, `limite_mensal_cota`, `pct_teto_utilizado`, `maior_fornecedor`, `pct_maior_fornecedor`.
+  - `marts.gasto_medio_por_uf`: `deputado_meses`, `pct_teto_utilizado`.
+  - `marts.gastos_por_partido`: `pct_teto_utilizado` (`NULL` em `'LIDERANCAS'`).
+  - `marts.kpis`: `pct_teto_utilizado_geral`, `deputados_com_teto`, `deputados_acima_90_teto`.
+- **Qualidade**: a despesa de `marts.ranking_deputados` bate com a de `marts.gasto_medio_por_uf`, e `marts.kpis.pct_teto_utilizado_geral` bate com o uso do teto recalculado a partir de `marts.ranking_deputados`.

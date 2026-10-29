@@ -4,8 +4,8 @@ Execução:
     uv run streamlit run app.py
 
 Regra central: este arquivo não calcula nenhum indicador; apenas lê os DataFrames
-prontos via painel.ler(), desenha os cartões de painel.cartoes() e exibe as figuras
-Plotly em 4 faixas.
+prontos via painel.ler(), desenha os cartões de painel.cartoes(), a tabela de
+painel.tabela_deputados() e as figuras Plotly em 5 faixas.
 """
 
 import importlib
@@ -83,40 +83,42 @@ def renderizar_pagina() -> None:
         st.stop()
         return
 
-    df_mensal = dados["gastos_mensais"].sort_values("mes").copy()
-    df_mensal["mes_str"] = pd.to_datetime(df_mensal["mes"]).dt.strftime("%Y-%m")
-    opcoes_mes = df_mensal["mes_str"].tolist()
-
-    if len(opcoes_mes) >= 2:
-        inicio_sel, fim_sel = st.select_slider(
-            "Filtro de período (mês de competência para a série temporal):",
-            options=opcoes_mes,
-            value=(opcoes_mes[0], opcoes_mes[-1]),
-        )
-        st.caption(
-            "Nota: o filtro recorta a série mensal (01). Os cartões e demais gráficos valem para o período completo."
-        )
-        df_mensal_filtrado = df_mensal[
-            (df_mensal["mes_str"] >= inicio_sel) & (df_mensal["mes_str"] <= fim_sel)
-        ]
-    else:
-        df_mensal_filtrado = df_mensal
-
     # Faixa 1: Sete cartões executivos (lidos diretamente de marts.kpis)
     st.markdown(painel.html_cartoes(cartoes), unsafe_allow_html=True)
 
-    # Faixa 2: Largura inteira — evolução mensal
-    st.plotly_chart(
-        painel.grafico_gastos_mensais(df_mensal_filtrado),
-        width="stretch",
-        theme=None,
+    # Faixa 2: Largura inteira — uso da cota por deputado (só filtra e ordena marts.ranking_deputados)
+    st.subheader("Uso da cota por deputado")
+    ranking = dados["ranking_deputados"]
+    col_uf, col_partido, col_nome = st.columns([1, 1, 2])
+    uf = col_uf.selectbox("UF", ["Todas", *sorted(ranking["uf"].dropna().unique())])
+    partido = col_partido.selectbox("Partido", ["Todos", *sorted(ranking["partido"].dropna().unique())])
+    nome = col_nome.text_input("Nome do deputado", placeholder="Digite parte do nome, com ou sem acento")
+    tabela = painel.tabela_deputados(
+        ranking,
+        uf=None if uf == "Todas" else uf,
+        partido=None if partido == "Todos" else partido,
+        nome=nome,
     )
+    st.dataframe(
+        tabela,
+        hide_index=True,
+        height=420,
+        width="stretch",
+        column_config={
+            "% do teto": st.column_config.ProgressColumn(
+                format="%.1f%%", min_value=0, max_value=100, color="#1A6B52"
+            ),
+            "Gasto (R$)": st.column_config.NumberColumn(format="localized"),
+            "% no maior fornecedor": st.column_config.NumberColumn(format="%.1f%%"),
+        },
+    )
+    st.caption(f"{painel.numero(len(tabela))} deputados exibidos · {painel.NOTA_TETO}")
 
-    # Faixa 3: Três colunas iguais — Onde estão os gastos?
+    # Faixa 3: Três colunas iguais — Quem usa a cota e onde vai o dinheiro?
     f3_col1, f3_col2, f3_col3 = st.columns(3)
     with f3_col1:
         st.plotly_chart(
-            painel.grafico_categorias(dados["gastos_por_categoria"]),
+            painel.grafico_gasto_uf(dados["gasto_medio_por_uf"]),
             width="stretch",
             theme=None,
         )
@@ -128,7 +130,7 @@ def renderizar_pagina() -> None:
         )
     with f3_col3:
         st.plotly_chart(
-            painel.grafico_gasto_uf(dados["gasto_medio_por_uf"]),
+            painel.grafico_categorias(dados["gastos_por_categoria"]),
             width="stretch",
             theme=None,
         )
@@ -153,6 +155,13 @@ def renderizar_pagina() -> None:
             width="stretch",
             theme=None,
         )
+
+    # Faixa 5: Largura inteira, compacta — ritmo mensal (série quase plana, eixo a partir de zero)
+    st.plotly_chart(
+        painel.grafico_gastos_mensais(dados["gastos_mensais"]),
+        width="stretch",
+        theme=None,
+    )
 
 
 if __name__ == "__main__":

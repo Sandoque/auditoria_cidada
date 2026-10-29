@@ -20,7 +20,7 @@ Todos os conjuntos de dados são públicos, oficiais e abertos sob a **Lei de Ac
 | `deputados.csv.gz` | Câmara dos Deputados — Cadastro de Parlamentares | `https://dadosabertos.camara.leg.br/arquivos/deputados/csv/deputados.csv` | 7.889 |
 | `sancoes_ceis.csv.gz` | Controladoria-Geral da União (CGU) — Portal da Transparência (CEIS) | `https://portaldatransparencia.gov.br/download-de-dados/ceis` | 23.739 |
 | `sancoes_cnep.csv.gz` | Controladoria-Geral da União (CGU) — Portal da Transparência (CNEP) | `https://portaldatransparencia.gov.br/download-de-dados/cnep` | 1.853 |
-| `cotas_uf.csv.gz` | API de Localidades do IBGE + Ato da Mesa (Limites de Cota por UF) | `https://servicodados.ibge.gov.br/api/v1/localidades/estados` | 27 |
+| `cotas_uf.csv.gz` | API de Localidades do IBGE + Anexo I do Ato da Mesa n.º 270/2023 (limites mensais de cota por UF vigentes em 2025) | `https://servicodados.ibge.gov.br/api/v1/localidades/estados` | 27 |
 | **Total em `raw`** | | | **204.567** |
 
 > Os cinco arquivos `.csv.gz` já estão versionados em `raw/` (~9,6 MB no total) para execução imediata e offline. Caso deseje baixar novamente direto dos portais governamentais, execute `uv run python scripts/baixar_dados_oficiais.py`.
@@ -77,14 +77,14 @@ Apresentação (zero cálculo na tela: apenas SELECT * FROM marts.<nome>)
 | `01_gastos_mensais.sql` | `marts.gastos_mensais` | Um mês de competência | 12 | Total `R$ 215.109.771,74` · Pico out/2025: `R$ 18.827.804,70` |
 | `02_gastos_por_categoria.sql` | `marts.gastos_por_categoria` | Uma categoria de despesa | 18 | Total `R$ 215.109.771,74` · 1.ª Divulgação: `R$ 102.059.898,64` (47,4%) |
 | `03_conformidade_ceis.sql` | `marts.conformidade_ceis` | A operação inteira (1 linha) | 1 | `171.026` válidos · `2.976` no CEIS (`R$ 1.816.195,33`) · `50` em sanção vigente (`R$ 296.423,45`), dos quais só `5` (`R$ 10.553,61`) com alcance federal · `R$ 192.079,60` restrita a outro órgão · `R$ 93.790,24` sem informação |
-| `04_ranking_deputados.sql` | `marts.ranking_deputados` | Um deputado federal ativo | 562 | Ranking com `rank() OVER` + dados civis e região IBGE |
+| `04_ranking_deputados.sql` | `marts.ranking_deputados` | Um deputado federal ativo | 562 | Ranking com `rank() OVER` + dados civis e região IBGE · uso do teto por meses de exercício (`112` deputados com 90% ou mais) · concentração no maior fornecedor (`23` com 80% ou mais) |
 | `05_recorrencia_fornecedores.sql` | `marts.recorrencia_fornecedores` | Uma faixa de qtd. de pagamentos | 7 | `22.250` fornecedores · `42,37%` pagamento único · `57,63%` recorrentes (2+) |
-| `06_gasto_medio_por_uf.sql` | `marts.gasto_medio_por_uf` | Uma UF (grão muda 2x) | 27 | Maior média anual/deputado: `AC` (`R$ 532.679,03`) e `RR` (`R$ 519.274,63`) · `SP`: `R$ 336.942,01` |
+| `06_gasto_medio_por_uf.sql` | `marts.gasto_medio_por_uf` | Uma UF (grão muda 2x) | 27 | Uso do teto por deputado-mês: `DF` (`94,98%`) no topo e `PA` (`63,46%`) na base · maior média anual/deputado: `AC` (`R$ 532.679,03`) |
 | `07_fornecedores_sancionados.sql` | `marts.fornecedores_sancionados` | Um CNPJ/CPF sancionado no CEIS com pagamento na CEAP | 19 | `14` com recebimento em vigência (`ACTON PROMOÇÕES`: `R$ 169.000,00`, sanção restrita a outro órgão; `IMAGE NATION`: `R$ 49.800,00`, sem informação de alcance) · coluna `alcance_sancao_vigente` (regra em `specs/marts.md`, seção 6) |
 | `08_glosa_por_categoria.sql` | `marts.glosa_por_categoria` | Uma categoria de despesa | 18 | Total glosado `R$ 1.012.889,88` em `9.873` notas · Maior corte: Locação de veículos (`R$ 281.403,14`) |
 | `09_fornecedores_pareto.sql` | `marts.fornecedores_pareto` | Um fornecedor com venda válida | 22.250 | `80%` de toda a despesa concentrados na posição `1.765` (`7,93%` dos fornecedores) |
-| `10_gastos_por_partido.sql` | `marts.gastos_por_partido` | Um partido (ou `'LIDERANCAS'`) | 23 | Soma `R$ 215.109.771,74` (inclui os 937 lançamentos de lideranças sem partido individual) |
-| `11_kpis.sql` | `marts.kpis` | A operação inteira (1 linha) | 1 | Alimenta os 7 cartões executivos (`R$ 215,11 mi` · Ticket `R$ 1.257,76` · Mediana `R$ 240,04`) |
+| `10_gastos_por_partido.sql` | `marts.gastos_por_partido` | Um partido (ou `'LIDERANCAS'`) | 23 | Soma `R$ 215.109.771,74` (inclui os 937 lançamentos de lideranças sem partido individual) · 10 maiores bancadas entre `73,12%` (MDB) e `82,05%` (PSB) do teto |
+| `11_kpis.sql` | `marts.kpis` | A operação inteira (1 linha) | 1 | Alimenta os 7 cartões executivos (`R$ 215,11 mi` · Ticket `R$ 1.257,76` · Mediana `R$ 240,04` · `76,32%` do teto usado) |
 | `12_deputados_por_uf.sql` | `marts.deputados_por_uf` | Uma UF | 27 | `SP` com `78` deputados ativos, `RJ` com `53`, `MG` com `56` |
 
 ---
@@ -125,7 +125,7 @@ uv run ruff check .
 
 ## 6. Onde a IA Errou ou Assumiu o que Não Pedimos — e Como Descobrimos Contando Linhas
 
-Durante o desenvolvimento orientado a specs, aplicamos a regra de ouro do curso (**contar antes → rodar → contar depois**) e interceptamos três erros clássicos que passariam silenciosamente sem lançar exceção:
+Durante o desenvolvimento orientado a specs, aplicamos a regra de ouro do curso (**contar antes → rodar → contar depois**) e interceptamos quatro erros clássicos que passariam silenciosamente sem lançar exceção:
 
 1. **O sumiço silencioso de 31 faturas de Telefonia na Etapa 2 (`171.059 → 171.028 linhas`)**:
    - *O que aconteceu*: Na primeira versão do `SELECT DISTINCT` de `refined.despesas_ceap`, a coluna `txtNumero` (`numero_documento`) não havia sido incluída no mapa de colunas, assumindo-se que `ideDocumento` (`documento_id`) identificava cada fatura. Ao rodar a transformação, a saída mostrou `171.059 → 171.028 linhas (31 duplicatas)` e os nulos de `data_emissao` caíram de `7.841` para `7.810`.
@@ -136,3 +136,6 @@ Durante o desenvolvimento orientado a specs, aplicamos a regra de ouro do curso 
 3. **A armadilha do `'NA'` em `sgUF` e dos `7.841` nulos em `data_emissao` na Etapa 2**:
    - *O que aconteceu*: Uma consulta ingênua `SELECT count(*) - count(sgUF) FROM raw.despesas_ceap` devolveu `0` nulos, sugerindo que toda despesa tinha um estado válido. Além disso, agrupar vendas/gastos mensais usando `date_trunc('month', data_emissao)` fazia desaparecerem `7.841` registros.
    - *Como descobrimos*: Ao cruzar os `937` registros onde `ideCadastro IS NULL` (gastos de Lideranças Partidárias), vimos que a Câmara preenche `sgUF` com o texto literal `'NA'` (que o `pandas` sem `keep_default_na=False` engoliria ou que o SQL contaria como uma 28.ª UF do Brasil!). Documentamos `NULLIF(sgUF, 'NA') AS uf` na spec de `refined`. E ao investigar `WHERE datEmissao IS NULL`, provamos que 100% dos `7.841` casos são faturas de `TELEFONIA`, motivo pelo qual a definição fechada de **Mês** usa `make_date(ano_competencia, mes_competencia, 1)` e nunca descarta linhas sem `data_emissao`.
+4. **A tabela de limites da cota defasada em 22 das 27 UFs (`30` deputados acima de 100% do teto)**:
+   - *O que aconteceu*: O primeiro cálculo de uso do teto (gasto ÷ limite mensal × meses de exercício) mostrou `30` deputados gastando mais do que a cota permite — até `110,4%` — embora o saldo da CEAP só acumule dentro do próprio ano.
+   - *Como descobrimos*: Em vez de aceitar "alguns deputados estouram a cota", fomos à fonte do limite. A tabela digitada em `scripts/baixar_dados_oficiais.py` batia com o Anexo I do **Ato da Mesa n.º 270/2023** (vigente de fev/2023 até o reajuste do Ato n.º 244/2026, ou seja, todo o ano de 2025) em só `5` UFs (AC, AP, DF, RO e RR); as outras `22` estavam com valores anteriores (SP: `R$ 41.150,25` em vez de `R$ 42.837,33`). Com a tabela oficial, restaram `4` casos acima de 100% (três entre `100,0%` e `100,8%`), e vários deputados de GO passaram a fechar o ano em **exatamente** `100,00%` (`R$ 495.610,32` = 12 × `R$ 41.300,86`) — a prova de que o limite agora é o mesmo que a Câmara aplica. Os casos marginais acima de 100% são coerentes com o art. 2.º, § 3.º, do Ato n.º 43/2009, que reembolsa até quatro trechos aéreos por mês **além** da cota.

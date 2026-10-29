@@ -95,6 +95,18 @@ def executar_qualidade() -> list[tuple[str, bool, str]]:
             FROM marts.conformidade_ceis AS c, marts.kpis AS k
             """,
         ),
+        (
+            "Dois caminhos concordam no uso do teto (marts 04, 06 e 11)",
+            """
+            SELECT
+                (SELECT sum(despesa_liquida) FROM marts.ranking_deputados)
+                    = (SELECT sum(despesa_total_uf) FROM marts.gasto_medio_por_uf)
+                AND (
+                    SELECT round(100.0 * sum(despesa_liquida) / sum(limite_mensal_cota * meses_exercicio), 2)
+                    FROM marts.ranking_deputados
+                ) = (SELECT pct_teto_utilizado_geral FROM marts.kpis)
+            """,
+        ),
     ]
 
     resultados: list[tuple[str, bool, str]] = []

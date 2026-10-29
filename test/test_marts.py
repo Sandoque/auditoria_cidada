@@ -207,6 +207,96 @@ def test_marts_classificam_alcance_da_sancao_vigente_por_sancao(
     assert m07["Forn D"] == (1, 0, Decimal("800.00"), Decimal("0.00"), None)
 
 
+def _trocar_por_cenario_de_teto(con: duckdb.DuckDBPyConnection) -> None:
+    # Limites redondos (SP R$ 1.000, RJ R$ 2.000) para o uso do teto ser conferível de cabeça.
+    con.execute("""
+        CREATE OR REPLACE TABLE refined.cotas_uf AS
+        SELECT * FROM (
+            VALUES
+            (35, 'SP', 'São Paulo', 'Sudeste', DECIMAL '1000.00'),
+            (33, 'RJ', 'Rio de Janeiro', 'Sudeste', DECIMAL '2000.00')
+        ) AS t(codigo_ibge, uf, nome_estado, regiao, limite_mensal_cota)
+    """)
+    con.execute("""
+        CREATE OR REPLACE TABLE refined.despesas_ceap AS
+        SELECT * FROM (
+            VALUES
+            -- T1 e T2: Dep 101 (SP) com despesa em março e maio — 3 meses de exercício (abril sem despesa conta)
+            ('1', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn X', '01234567000199', 'NF1', 0,
+             TIMESTAMP '2025-03-10 10:00:00', DECIMAL '500.00', DECIMAL '0.00', DECIMAL '500.00', 2025, 3, 0, 1, 1),
+            ('2', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn Y', '99888777000166', 'NF2', 0,
+             TIMESTAMP '2025-05-10 10:00:00', DECIMAL '1500.00', DECIMAL '0.00', DECIMAL '1500.00', 2025, 5, 0, 1, 1),
+            -- T3: Dep 102 (RJ) gasta o dobro do teto em um único mês — uso de 200%
+            ('3', 'Dep Beta', '102', 'RJ', 'PB', 57, 1, 'DIVULGACAO', 'Forn X', '01234567000199', 'NF3', 0,
+             TIMESTAMP '2025-01-10 10:00:00', DECIMAL '4000.00', DECIMAL '0.00', DECIMAL '4000.00', 2025, 1, 0, 1, 1),
+            -- T4: Liderança (sem deputado, UF e partido) — fora de qualquer teto individual
+            ('4', 'LIDERANÇA DO PA', NULL, NULL, NULL, 57, 1, 'DIVULGACAO', 'Forn Y', '99888777000166', 'NF4', 0,
+             TIMESTAMP '2025-01-10 10:00:00', DECIMAL '800.00', DECIMAL '0.00', DECIMAL '800.00', 2025, 1, 0, 1, 1),
+            -- T5 e T6: Dep 103 (RJ) divide R$ 600 igualmente entre X e Y — empate vai para o menor documento (X)
+            ('5', 'Dep Gama', '103', 'RJ', 'PB', 57, 1, 'DIVULGACAO', 'Forn Y', '99888777000166', 'NF5', 0,
+             TIMESTAMP '2025-02-10 10:00:00', DECIMAL '300.00', DECIMAL '0.00', DECIMAL '300.00', 2025, 2, 0, 1, 1),
+            ('6', 'Dep Gama', '103', 'RJ', 'PB', 57, 1, 'DIVULGACAO', 'Forn X', '01234567000199', 'NF6', 0,
+             TIMESTAMP '2025-02-11 10:00:00', DECIMAL '300.00', DECIMAL '0.00', DECIMAL '300.00', 2025, 2, 0, 1, 1)
+        ) AS t(
+            documento_id, nome_parlamentar, deputado_id, uf, partido, legislatura_id, subcota_id,
+            categoria_despesa, nome_fornecedor, documento_fornecedor, numero_documento, tipo_documento_id,
+            data_emissao, valor_documento, valor_glosa, valor_liquido, ano_competencia, mes_competencia,
+            parcela, lote_id, cadastro_interno_id
+        )
+    """)
+
+
+def test_marts_medem_uso_do_teto_por_meses_de_exercicio_e_concentracao(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    banco = tmp_path / "teto.duckdb"
+    monkeypatch.setattr(db, "CAMINHO_BANCO", banco)
+
+    con = db.conectar()
+    try:
+        _criar_refined_sintetico(con)
+        _trocar_por_cenario_de_teto(con)
+    finally:
+        con.close()
+
+    marts.executar_marts()
+
+    con = db.conectar()
+    try:
+        m04 = {
+            linha[0]: linha[1:]
+            for linha in con.execute("""
+                SELECT deputado_id, meses_exercicio, pct_teto_utilizado, maior_fornecedor, pct_maior_fornecedor
+                FROM marts.ranking_deputados
+            """).fetchall()
+        }
+        m06 = {
+            linha[0]: linha[1:]
+            for linha in con.execute(
+                "SELECT uf, deputado_meses, pct_teto_utilizado FROM marts.gasto_medio_por_uf"
+            ).fetchall()
+        }
+        m10 = dict(con.execute("SELECT partido, pct_teto_utilizado FROM marts.gastos_por_partido").fetchall())
+        m11 = con.execute(
+            "SELECT pct_teto_utilizado_geral, deputados_com_teto, deputados_acima_90_teto FROM marts.kpis"
+        ).fetchall()[0]
+    finally:
+        con.close()
+
+    # Percentuais saem de round(..., 2) em DOUBLE; a comparação exata vale porque o literal é o mesmo double.
+    # 101: R$ 2.000 em 3 meses de R$ 1.000; 102: R$ 4.000 em 1 mês de R$ 2.000; 103: R$ 600 em 1 mês de R$ 2.000
+    assert m04["101"] == (3, 66.67, "Forn Y", 75.0)
+    assert m04["102"] == (1, 200.0, "Forn X", 100.0)
+    assert m04["103"] == (1, 30.0, "Forn X", 50.0)
+    assert None not in m04
+
+    # RJ soma antes de dividir: R$ 4.600 / (2 deputado-meses × R$ 2.000) = 115%, não a média de 200% e 30%
+    assert m06 == {"SP": (3, 66.67), "RJ": (2, 115.0)}
+    assert m10 == {"PA": 66.67, "PB": 115.0, "LIDERANCAS": None}
+    # R$ 6.600 / R$ 7.000 de teto; só o 102 passa de 90%
+    assert m11 == (94.29, 3, 1)
+
+
 def test_mart_apagado_desaparece_e_mart_vazio_faz_rollback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
