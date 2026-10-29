@@ -8,7 +8,7 @@ Pipeline completo de Engenharia de Dados construído do zero com **Spec-Driven D
 
 ![Painel de 2025: cartões executivos, tabela de uso da cota por deputado e gráficos por UF, partido, categoria, sanções, glosas e concentração de fornecedores](design/painel.png)
 
-<sub>Página de 2025 no GitHub Pages. O primeiro rascunho do layout, em grade de 12 colunas, está em [`design/rascunho.png`](design/rascunho.png).</sub>
+<sub>Página de 2025 no GitHub Pages. O rascunho do layout (grade de 12 colunas, 5 faixas, com a pergunta e o número de conferência de cada bloco) está em [`design/rascunho.png`](design/rascunho.png).</sub>
 
 ---
 
