@@ -58,20 +58,20 @@ FONTE_PADRAO = "Segoe UI, Arial, sans-serif"
 _MAPA_CATEGORIAS: dict[str, str] = {
     "DIVULGAÇÃO DA ATIVIDADE PARLAMENTAR": "Divulgação Parlamentar",
     "LOCAÇÃO OU FRETAMENTO DE VEÍCULOS AUTOMOTORES": "Locação de Veículos",
-    "MANUTENÇÃO DE ESCRITÓRIO DE APOIO À ATIVIDADE PARLAMENTAR": "Manutenção de Escritório",
-    "COMBUSTÍVEIS E LUBRIFICANTES": "Combustíveis e Lubrificantes",
-    "HOSPEDAGEM ,EXCETO DO PARLAMENTAR NO DISTRITO FEDERAL": "Hospedagem (fora do DF)",
+    "MANUTENÇÃO DE ESCRITÓRIO DE APOIO À ATIVIDADE PARLAMENTAR": "Manutenção Escritório",
+    "COMBUSTÍVEIS E LUBRIFICANTES": "Combustíveis e Lubrif.",
+    "HOSPEDAGEM ,EXCETO DO PARLAMENTAR NO DISTRITO FEDERAL": "Hospedagem (fora DF)",
     "TELEFONIA": "Telefonia",
     "LOCAÇÃO OU FRETAMENTO DE AERONAVES": "Locação de Aeronaves",
-    "FORNECIMENTO DE ALIMENTAÇÃO DO PARLAMENTAR": "Alimentação Parlamentar",
+    "FORNECIMENTO DE ALIMENTAÇÃO DO PARLAMENTAR": "Alimentação",
     "SERVIÇO DE SEGURANÇA PRESTADO POR EMPRESA ESPECIALIZADA": "Serviço de Segurança",
     "SERVIÇO DE TÁXI, PEDÁGIO E ESTACIONAMENTO": "Táxi, Pedágio e Estac.",
-    "PASSAGEM AÉREA - REEMBOLSO": "Passagem Aérea (Reembolso)",
+    "PASSAGEM AÉREA - REEMBOLSO": "Passagem Aérea (Reemb.)",
     "PASSAGEM AÉREA - RPA": "Passagem Aérea (RPA)",
-    "LOCAÇÃO OU FRETAMENTO DE EMBARCAÇÕES": "Locação de Embarcações",
-    "PASSAGENS TERRESTRES, MARÍTIMAS OU FLUVIAIS": "Passagens Terrestres/Fluviais",
+    "LOCAÇÃO OU FRETAMENTO DE EMBARCAÇÕES": "Locação Embarcações",
+    "PASSAGENS TERRESTRES, MARÍTIMAS OU FLUVIAIS": "Passagens Terrestres",
     "SERVIÇOS POSTAIS": "Serviços Postais",
-    "ASSINATURA DE PUBLICAÇÕES": "Assinatura de Publicações",
+    "ASSINATURA DE PUBLICAÇÕES": "Assinatura Publicações",
     "PARTICIPAÇÃO EM CURSO, PALESTRA OU EVENTO SIMILAR": "Cursos e Palestras",
     "AQUISIÇÃO DE TOKENS E CERTIFICADOS DIGITAIS": "Certificados Digitais",
 }
@@ -81,7 +81,7 @@ def _rotulo_categoria(nome: object) -> str:
     chave = " ".join(str(nome).strip().rstrip(".").split()).upper()
     if chave in _MAPA_CATEGORIAS:
         return _MAPA_CATEGORIAS[chave]
-    return chave[:28] + "…" if len(chave) > 29 else chave
+    return chave[:20] + "…" if len(chave) > 21 else chave
 
 
 def _rotulo_fornecedor(nome: object) -> str:
@@ -89,7 +89,7 @@ def _rotulo_fornecedor(nome: object) -> str:
     for sufixo in (" - ME", " - EPP", " LTDA", " EPP", " S/A", " S.A."):
         if limpo.endswith(sufixo) and len(limpo) > len(sufixo) + 4:
             limpo = limpo[: -len(sufixo)].strip().rstrip("-").strip()
-    return limpo[:26] + "…" if len(limpo) > 27 else limpo
+    return limpo[:19] + "…" if len(limpo) > 20 else limpo
 
 
 def _formatar_br(valor: float, casas: int = 2) -> str:
@@ -158,41 +158,50 @@ def _aplicar_layout_base(
     titulo: str,
     eixo_x: str,
     eixo_y: str,
+    margem_esquerda: int = 72,
     barra_horizontal: bool = False,
 ) -> go.Figure:
     fig.update_layout(
         template="plotly_white",
         title={
             "text": f"<b>{titulo}</b>",
-            "font": {"family": FONTE_PADRAO, "size": 15, "color": COR_TEXTO},
-            "x": 0.01,
+            "font": {"family": FONTE_PADRAO, "size": 13, "color": COR_TEXTO},
+            "x": 0.02,
             "xanchor": "left",
         },
         plot_bgcolor="#FFFFFF",
         paper_bgcolor="#FFFFFF",
-        font={"family": FONTE_PADRAO, "size": 12, "color": COR_TEXTO},
+        font={"family": FONTE_PADRAO, "size": 11, "color": COR_TEXTO},
         hoverlabel={
             "bgcolor": COR_TEXTO,
             "font_size": 12,
             "font_family": FONTE_PADRAO,
             "font_color": "#FFFFFF",
         },
-        margin={"l": 16, "r": 24, "t": 50, "b": 42},
-        height=360,
+        margin={"l": margem_esquerda, "r": 24, "t": 48, "b": 58},
+        height=370,
     )
     fig.update_xaxes(
-        title={"text": eixo_x, "font": {"family": FONTE_PADRAO, "size": 12, "color": COR_EIXO}},
+        title={
+            "text": eixo_x,
+            "font": {"family": FONTE_PADRAO, "size": 11, "color": COR_EIXO},
+            "standoff": 10,
+        },
         showgrid=True,
         gridcolor=COR_GRADE,
         zeroline=False,
-        tickfont={"family": FONTE_PADRAO, "size": 12, "color": COR_TEXTO},
+        tickfont={"family": FONTE_PADRAO, "size": 11, "color": COR_TEXTO},
         automargin=True,
     )
     fig.update_yaxes(
-        title={"text": eixo_y, "font": {"family": FONTE_PADRAO, "size": 12, "color": COR_EIXO}},
+        title={
+            "text": eixo_y,
+            "font": {"family": FONTE_PADRAO, "size": 11, "color": COR_EIXO},
+            "standoff": 12,
+        },
         showgrid=False,
         zeroline=False,
-        tickfont={"family": FONTE_PADRAO, "size": 12, "color": COR_TEXTO},
+        tickfont={"family": FONTE_PADRAO, "size": 11, "color": COR_TEXTO},
         ticksuffix="  " if barra_horizontal else "",
         automargin=True,
     )
@@ -218,6 +227,7 @@ def grafico_gastos_mensais(df: pd.DataFrame) -> go.Figure:
         "01 · Evolução mensal da Cota Parlamentar (R$)",
         "Mês de competência",
         "Despesa líquida (R$)",
+        margem_esquerda=80,
     )
 
 
@@ -240,6 +250,7 @@ def grafico_categorias(df: pd.DataFrame) -> go.Figure:
         "02 · Despesa por categoria (Top 10 · R$)",
         "Despesa líquida (R$)",
         "",
+        margem_esquerda=165,
         barra_horizontal=True,
     )
 
@@ -258,9 +269,10 @@ def grafico_partidos(df: pd.DataFrame) -> go.Figure:
     )
     return _aplicar_layout_base(
         fig,
-        "10 · Despesa líquida por partido (Top 10 · R$)",
+        "10 · Despesa por partido (Top 10 · R$)",
         "Despesa líquida (R$)",
         "",
+        margem_esquerda=105,
         barra_horizontal=True,
     )
 
@@ -279,9 +291,10 @@ def grafico_gasto_uf(df: pd.DataFrame) -> go.Figure:
     )
     return _aplicar_layout_base(
         fig,
-        "06 · Gasto anual médio por deputado por UF (Top 10 · R$)",
+        "06 · Gasto médio/deputado por UF (Top 10)",
         "Gasto médio por deputado (R$)",
         "",
+        margem_esquerda=50,
         barra_horizontal=True,
     )
 
@@ -306,9 +319,10 @@ def grafico_fornecedores_ceis(df: pd.DataFrame) -> go.Figure:
     )
     return _aplicar_layout_base(
         fig,
-        "07 · Fornecedores no CEIS (Top 10 · âmbar = sanção ativa)",
+        "07 · Fornecedores CEIS (âmbar = ativa)",
         "Valor recebido na CEAP (R$)",
         "",
+        margem_esquerda=165,
         barra_horizontal=True,
     )
 
@@ -329,9 +343,10 @@ def grafico_glosas(df: pd.DataFrame) -> go.Figure:
     )
     return _aplicar_layout_base(
         fig,
-        "08 · Glosas aplicadas por categoria (Top 10 · R$)",
+        "08 · Glosas por categoria (Top 10 · R$)",
         "Valor glosado / cortado (R$)",
         "",
+        margem_esquerda=165,
         barra_horizontal=True,
     )
 
@@ -362,11 +377,12 @@ def grafico_pareto_fornecedores(df: pd.DataFrame) -> go.Figure:
         line_color=COR_DESTAQUE,
         annotation_text="<b>80% da despesa (pos. 1.765)</b>",
         annotation_position="bottom right",
-        annotation_font={"family": FONTE_PADRAO, "size": 12, "color": COR_TEXTO},
+        annotation_font={"family": FONTE_PADRAO, "size": 11, "color": COR_TEXTO},
     )
     return _aplicar_layout_base(
         fig,
-        "09 · Concentração de Pareto dos fornecedores (% acumulado)",
+        "09 · Concentração de Pareto (% acumulado)",
         "Posição do fornecedor no ranking",
         "% acumulado da despesa",
+        margem_esquerda=72,
     )
