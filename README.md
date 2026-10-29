@@ -6,7 +6,21 @@
 
 Pipeline completo de Engenharia de Dados construído do zero com **Spec-Driven Development**, **Python**, **DuckDB**, **SQL**, **Streamlit**, **Plotly** e **Pytest** para auditar os desembolsos da **Cota para Exercício da Atividade Parlamentar (CEAP, de 2025 até o ano corrente)** cruzados com o **Cadastro Nacional de Empresas Inidôneas e Suspensas (CEIS/CGU)**, o **Cadastro e o Histórico de Mandatos dos Deputados** e os **Limites Oficiais de Cota por UF (Atos da Mesa da Câmara)**.
 
-![Rascunho do Painel em Grade de 12 Colunas](design/rascunho.png)
+![Painel de 2025: cartões executivos, tabela de uso da cota por deputado e gráficos por UF, partido, categoria, sanções, glosas e concentração de fornecedores](design/painel.png)
+
+<sub>Página de 2025 no GitHub Pages. O primeiro rascunho do layout, em grade de 12 colunas, está em [`design/rascunho.png`](design/rascunho.png).</sub>
+
+---
+
+## Achados
+
+O que os dados de 2025 mostram, e o que só apareceu porque cada número foi conferido contra a fonte oficial em vez de aceito como saiu da consulta:
+
+1. **"Pago a empresa sancionada" quase nunca quer dizer "pago a quem estava proibido de vender para a Câmara".** Em 2025, R$ 296.423,45 foram pagos a fornecedores com sanção vigente no CEIS. Lendo o alcance de cada sanção no próprio cadastro, só **R$ 10.553,61** (5 notas, 4 fornecedores) vêm de sanções que alcançam a esfera federal; R$ 192.079,60 são de sanções que valem só em outro órgão ou esfera, e R$ 93.790,24 não têm o alcance informado. Somar tudo como "risco" exagerava o problema quase 30 vezes.
+2. **A tabela de limites da cota usada pelo projeto estava errada em 22 das 27 UFs.** A pista foi estatística: 30 deputados apareciam gastando mais do que a cota permite. Com a tabela oficial do Ato da Mesa n.º 270/2023, vários deputados de Goiás passaram a fechar o ano em **exatamente 100,00%** (R$ 495.610,32 = 12 × R$ 41.300,86) — a assinatura de quem gasta a cota até o último centavo, e a prova de que o limite agora é o que a Câmara aplica.
+3. **A API da Câmara registra a volta de suplentes de forma inconsistente.** Reentradas aparecem como `"DIVERSO - … / Entrada - Reassunção"`, às vezes com situação `CONVOCADO`. Lendo só a situação, três suplentes ficavam com 43 a 101 dias de mandato num ano em que gastaram todos os meses — e com 300% a 675% de uso da cota. Com a regra corrigida, os 562 deputados de 2025 têm período oficial de mandato e o maior uso cai para 100,8%, coerente com os adicionais de cota de líderes e presidentes de comissão.
+4. **Em reais, quase todo ranking só mede tamanho.** O PL lidera o gasto por partido (18,4%) porque tem 104 deputados; medido em % do teto, as 10 maiores bancadas ficam todas entre 73% e 83%. Na glosa, Locação de Veículos lidera em reais, mas a Câmara corta só 0,67% do valor; a maior taxa é de Cursos e Palestras (32,1%). No uso médio, a Câmara gastou **76,9% do teto** em 2025, e 120 dos 562 deputados usaram 90% ou mais.
+5. **Em aberto: 2026 tem cara de ano eleitoral.** O gasto cai de R$ 23,5 mi em maio para R$ 12,9 mi em junho, um mês já fechado (passado o prazo de 90 dias para apresentar notas). A hipótese é a restrição à divulgação do mandato antes da eleição — divulgação é quase metade do gasto —, ainda não testada por categoria.
 
 ---
 
