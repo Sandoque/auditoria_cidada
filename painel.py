@@ -486,15 +486,21 @@ def grafico_gastos_mensais(df: pd.DataFrame, parcial: bool = False) -> go.Figure
             name="Despesa líquida (R$)",
         )
     )
+    anos_serie = sorted({pd.Timestamp(m).year for m in dados["mes"]})
     fig = _aplicar_layout_base(
         fig,
         "01 · Evolução mensal da Cota Parlamentar (R$)",
-        "Mês de competência",
+        f"Mês de competência ({', '.join(map(str, anos_serie))})" if anos_serie else "Mês de competência",
         "Despesa líquida (R$)",
         margem_esquerda=80,
         subtitulo=subtitulo,
     )
-    fig.update_xaxes(tickvals=list(dados["mes"]), ticktext=[_mes_abrev(m) for m in dados["mes"]])
+    # Só o mês no rótulo: em meia largura, "jan/2025 … dez/2025" ficava inclinado e apertado
+    fig.update_xaxes(
+        tickvals=list(dados["mes"]),
+        ticktext=[_MESES_ABREV[pd.Timestamp(m).month - 1] for m in dados["mes"]],
+        tickangle=0,
+    )
     fig.update_yaxes(rangemode="tozero")
     fig.update_layout(height=290)
     return fig
@@ -509,6 +515,7 @@ def _posicao_no_ano(data: object) -> float:
 def grafico_divulgacao_eleitoral(df: pd.DataFrame, ano: int) -> go.Figure:
     """13 · Divulgação do mandato no ano × ano anterior, com a vedação dos 120 dias antes da eleição."""
     fig = go.Figure()
+    titulo_anterior = f" × {ano - 1}" if (df["ano"] == ano - 1).any() else ""
     for ano_serie, cor, largura in ((ano - 1, COR_NEUTRA, 2), (ano, COR_PRINCIPAL, 3)):
         serie = df[df["ano"] == ano_serie].sort_values("mes")
         if serie.empty:
@@ -553,7 +560,7 @@ def grafico_divulgacao_eleitoral(df: pd.DataFrame, ano: int) -> go.Figure:
 
     fig = _aplicar_layout_base(
         fig,
-        f"13 · Divulgação do mandato: {ano} × {ano - 1} (R$)",
+        f"13 · Divulgação do mandato: {ano}{titulo_anterior} (R$)",
         "Mês de competência",
         "Divulgação (R$)",
         margem_esquerda=80,
