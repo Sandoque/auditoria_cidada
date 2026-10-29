@@ -1,8 +1,9 @@
 """Gerador do relatório executivo estático em HTML (`relatorio.html`).
 
 SPEC DO MÓDULO (Fonte da Verdade):
-1. Lê os marts com painel.ler(), formata os cartões com painel.reais/pct/numero e
-   monta os sete gráficos com as funções de painel.py. Não importa streamlit.
+1. Lê os marts com painel.ler(), desenha os cartões com painel.cartoes() e
+   painel.html_cartoes() e monta os sete gráficos com as funções de painel.py.
+   Não importa streamlit.
 2. Escreve relatorio.html na raiz do projeto com as quatro faixas do painel na
    mesma ordem. A biblioteca Plotly vem do CDN uma única vez no primeiro gráfico
    (include_plotlyjs="cdn") e nos demais include_plotlyjs=False, com div_id fixos
@@ -25,25 +26,7 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
         sys.stdout.reconfigure(encoding="utf-8")
 
     dados = painel.ler()
-    kpi = dados["kpis"].iloc[0]
-
-    cartoes = [
-        ("Despesa líquida · válida", painel.reais(kpi["despesa_total_reais"]), False),
-        ("Ticket médio · por nota", painel.reais(kpi["ticket_medio_nota"]), False),
-        ("Taxa de glosa · % cortado", painel.pct(kpi["pct_glosado"], casas=2), False),
-        ("Fornecedores recorrentes · 2+", painel.pct(kpi["pct_fornecedores_recorrentes"], casas=2), False),
-        ("Valor regular · fora do CEIS", painel.pct(kpi["pct_valor_regular"], casas=2), False),
-        ("Pago em sanção ativa · CEIS", painel.reais(kpi["despesa_sancao_vigente"]), True),
-        ("Notas em sanção ativa · CEIS", painel.numero(kpi["lancamentos_sancao_vigente"], casas=0), True),
-    ]
-
-    html_cartoes = "\n".join(
-        f'<div class="card {"card-alert" if alerta else ""}">'
-        f'<div class="card-label">{rotulo}</div>'
-        f'<div class="card-value">{valor}</div>'
-        f"</div>"
-        for rotulo, valor, alerta in cartoes
-    )
+    html_cartoes = painel.html_cartoes(painel.cartoes(dados["kpis"].iloc[0]))
 
     g01 = painel.grafico_gastos_mensais(dados["gastos_mensais"]).to_html(
         full_html=False, include_plotlyjs="cdn", div_id="g01"
@@ -82,8 +65,6 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
       --ink: #0b1315;
       --muted: #1e293b;
       --line: #cbd5e1;
-      --accent: #1a6b52;
-      --amber: #b85c00;
     }}
     * {{ box-sizing: border-box; }}
     body {{
@@ -107,38 +88,7 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
       font-size: 14px;
       font-weight: 500;
     }}
-    .cards {{
-      display: grid;
-      grid-template-columns: repeat(7, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 16px;
-    }}
-    .card {{
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-top: 4px solid var(--accent);
-      border-radius: 8px;
-      padding: 12px 14px;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-    }}
-    .card-alert {{
-      border-top-color: var(--amber);
-    }}
-    .card-label {{
-      font-size: 12.5px;
-      font-weight: 600;
-      color: var(--muted);
-      margin-bottom: 6px;
-      line-height: 1.25;
-    }}
-    .card-value {{
-      font-size: 19px;
-      font-weight: 700;
-      color: var(--ink);
-    }}
-    .card-alert .card-value {{
-      color: var(--amber);
-    }}
+    {painel.CSS_CARTOES}
     .row-full {{
       background: var(--surface);
       border: 1px solid var(--line);
@@ -165,7 +115,6 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
       text-align: right;
     }}
     @media (max-width: 1100px) {{
-      .cards {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .row-3 {{ grid-template-columns: 1fr; }}
     }}
   </style>
@@ -176,9 +125,7 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
     <p class="sub">Visão da operação completa (jan/2025 a dez/2025) · Números lidos diretamente da camada marts</p>
   </header>
 
-  <section class="cards">
-    {html_cartoes}
-  </section>
+  {html_cartoes}
 
   <section class="row-full">
     {g01}

@@ -56,6 +56,17 @@ def executar_qualidade() -> list[tuple[str, bool, str]]:
             "SELECT lancamentos_limpos + lancamentos_ceis = total_lancamentos FROM marts.conformidade_ceis",
         ),
         (
+            "As partes somam o todo (alcance federal + sem informação + restrita == sanção vigente no mart 03)",
+            """
+            SELECT
+                despesa_sancao_vigente_federal + despesa_sancao_vigente_sem_info + despesa_sancao_vigente_restrita
+                    = despesa_sancao_vigente
+                AND lancamentos_sancao_vigente_federal + lancamentos_sancao_vigente_sem_info + lancamentos_sancao_vigente_restrita
+                    = lancamentos_sancao_vigente
+            FROM marts.conformidade_ceis
+            """,
+        ),
+        (
             "Dois caminhos concordam (despesa_liquida idêntica nos marts 01, 02, 03, 09, 10 e 11)",
             """
             SELECT
@@ -72,6 +83,16 @@ def executar_qualidade() -> list[tuple[str, bool, str]]:
             SELECT
                 (SELECT despesa_fornecedores_ceis FROM marts.conformidade_ceis) = (SELECT sum(valor_recebido_total) FROM marts.fornecedores_sancionados)
                 AND (SELECT despesa_sancao_vigente FROM marts.conformidade_ceis) = (SELECT sum(valor_recebido_em_vigencia) FROM marts.fornecedores_sancionados)
+            """,
+        ),
+        (
+            "Dois caminhos concordam no alcance da sanção vigente (mart 03 vs mart 11)",
+            """
+            SELECT
+                c.despesa_sancao_vigente_federal = k.despesa_sancao_vigente_federal
+                AND c.despesa_sancao_vigente_sem_info = k.despesa_sancao_vigente_sem_info
+                AND c.despesa_sancao_vigente_restrita = k.despesa_sancao_vigente_restrita
+            FROM marts.conformidade_ceis AS c, marts.kpis AS k
             """,
         ),
     ]

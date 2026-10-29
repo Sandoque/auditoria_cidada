@@ -94,6 +94,119 @@ def test_marts_reais_excluem_negativo_e_nao_multiplicam_sancao_dupla(
     assert ceis_row[3] == Decimal("900.00")
 
 
+def _trocar_por_cenario_de_alcance(con: duckdb.DuckDBPyConnection) -> None:
+    # Valores em potências de 2: cada soma esperada só fecha com um único conjunto de notas.
+    con.execute("""
+        CREATE OR REPLACE TABLE refined.despesas_ceap AS
+        SELECT * FROM (
+            VALUES
+            -- N1: fornecedor A com duas sanções vigentes (restrita e federal) — vale a federal, conta 1 vez
+            ('1', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn A', '11111111000111', 'NF1', 0,
+             TIMESTAMP '2025-05-10 10:00:00', DECIMAL '100.00', DECIMAL '0.00', DECIMAL '100.00', 2025, 5, 0, 1, 1),
+            -- N2: fornecedor B com sanção vigente 'Sem Informação' — cai em sem_info
+            ('2', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn B', '22222222000122', 'NF2', 0,
+             TIMESTAMP '2025-05-10 10:00:00', DECIMAL '200.00', DECIMAL '0.00', DECIMAL '200.00', 2025, 5, 0, 1, 1),
+            -- N3: fornecedor C com sanção vigente só na esfera municipal — cai em restrita
+            ('3', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn C', '33333333000133', 'NF3', 0,
+             TIMESTAMP '2025-05-10 10:00:00', DECIMAL '400.00', DECIMAL '0.00', DECIMAL '400.00', 2025, 5, 0, 1, 1),
+            -- N4: fornecedor D emitida no intervalo ENTRE duas sanções — o envelope min/max marcaria vigente
+            ('4', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn D', '44444444000144', 'NF4', 0,
+             TIMESTAMP '2025-05-10 10:00:00', DECIMAL '800.00', DECIMAL '0.00', DECIMAL '800.00', 2025, 5, 0, 1, 1),
+            -- N5: fornecedor E fora do CEIS — limpo
+            ('5', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn E', '55555555000155', 'NF5', 0,
+             TIMESTAMP '2025-05-10 10:00:00', DECIMAL '1600.00', DECIMAL '0.00', DECIMAL '1600.00', 2025, 5, 0, 1, 1),
+            -- N6: fornecedor C de novo, depois do fim da sanção — no CEIS, mas fora da vigência
+            ('6', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn C', '33333333000133', 'NF6', 0,
+             TIMESTAMP '2025-09-10 10:00:00', DECIMAL '3200.00', DECIMAL '0.00', DECIMAL '3200.00', 2025, 9, 0, 1, 1)
+        ) AS t(
+            documento_id, nome_parlamentar, deputado_id, uf, partido, legislatura_id, subcota_id,
+            categoria_despesa, nome_fornecedor, documento_fornecedor, numero_documento, tipo_documento_id,
+            data_emissao, valor_documento, valor_glosa, valor_liquido, ano_competencia, mes_competencia,
+            parcela, lote_id, cadastro_interno_id
+        )
+    """)
+    con.execute("""
+        CREATE OR REPLACE TABLE refined.sancoes_ceis AS
+        SELECT * FROM (
+            VALUES
+            -- A: restrita ao órgão federal (nível 1) e todas as esferas (nível 3), ambas vigentes em N1
+            ('A1', 'J', '11111111000111', 'Forn A', 'Forn A', 'Suspensão', DATE '2025-01-01', DATE '2025-12-31',
+             DATE '2025-01-02', 'No órgão sancionador', 'Ministério X', 'DF', 'FEDERAL'),
+            ('A2', 'J', '11111111000111', 'Forn A', 'Forn A', 'Impedimento', DATE '2025-02-01', CAST(NULL AS DATE),
+             DATE '2025-02-02', 'Todas as Esferas em todos os Poderes', 'Prefeitura Y', 'SP', 'MUNICIPAL'),
+            -- B: abrangência sem informação no cadastro
+            ('B1', 'J', '22222222000122', 'Forn B', 'Forn B', 'Inidoneidade', DATE '2025-01-01', DATE '2025-12-31',
+             DATE '2025-01-02', 'Sem Informação', 'Secretaria Z', 'MG', 'ESTADUAL'),
+            -- C: todos os Poderes, mas só da esfera municipal; termina antes da nota N6
+            ('C1', 'J', '33333333000133', 'Forn C', 'Forn C', 'Impedimento', DATE '2025-01-01', DATE '2025-06-30',
+             DATE '2025-01-02', 'Em todos os Poderes da Esfera do órgão sancionador', 'Prefeitura W', 'RS', 'MUNICIPAL'),
+            -- D: duas sanções federais amplas separadas por um intervalo que contém a nota N4
+            ('D1', 'J', '44444444000144', 'Forn D', 'Forn D', 'Suspensão', DATE '2023-01-01', DATE '2023-12-31',
+             DATE '2023-01-02', 'Todas as Esferas em todos os Poderes', 'CGU', 'DF', 'FEDERAL'),
+            ('D2', 'J', '44444444000144', 'Forn D', 'Forn D', 'Suspensão', DATE '2026-01-01', CAST(NULL AS DATE),
+             DATE '2026-01-02', 'Todas as Esferas em todos os Poderes', 'CGU', 'DF', 'FEDERAL')
+        ) AS t(
+            sancao_id, tipo_pessoa, documento_sancionado, nome_sancionado, razao_social_receita,
+            categoria_sancao, data_inicio_sancao, data_fim_sancao, data_publicacao,
+            abrangencia_sancao, orgao_sancionador, uf_orgao_sancionador, esfera_orgao_sancionador
+        )
+    """)
+
+
+def test_marts_classificam_alcance_da_sancao_vigente_por_sancao(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    banco = tmp_path / "alcance.duckdb"
+    monkeypatch.setattr(db, "CAMINHO_BANCO", banco)
+
+    con = db.conectar()
+    try:
+        _criar_refined_sintetico(con)
+        _trocar_por_cenario_de_alcance(con)
+    finally:
+        con.close()
+
+    marts.executar_marts()
+
+    con = db.conectar()
+    try:
+        m03 = con.execute("""
+            SELECT lancamentos_limpos, lancamentos_ceis, lancamentos_sancao_vigente,
+                   lancamentos_sancao_vigente_federal, lancamentos_sancao_vigente_sem_info,
+                   lancamentos_sancao_vigente_restrita, despesa_fornecedores_ceis, despesa_sancao_vigente,
+                   despesa_sancao_vigente_federal, despesa_sancao_vigente_sem_info, despesa_sancao_vigente_restrita
+            FROM marts.conformidade_ceis
+        """).fetchall()[0]
+        m11 = con.execute("""
+            SELECT despesa_sancao_vigente, despesa_sancao_vigente_federal, despesa_sancao_vigente_sem_info,
+                   despesa_sancao_vigente_restrita, lancamentos_sancao_vigente_federal,
+                   fornecedores_sancao_vigente_federal
+            FROM marts.kpis
+        """).fetchall()[0]
+        m07 = {
+            linha[0]: linha[1:]
+            for linha in con.execute("""
+                SELECT nome_fornecedor, lancamentos, lancamentos_em_vigencia, valor_recebido_total,
+                       valor_recebido_em_vigencia, alcance_sancao_vigente
+                FROM marts.fornecedores_sancionados
+            """).fetchall()
+        }
+    finally:
+        con.close()
+
+    # N5 limpa; N1, N2, N3, N4 e N6 no CEIS; só N1, N2 e N3 em vigência (N4 cai no intervalo, N6 depois do fim)
+    assert m03[:3] == (1, 5, 3)
+    assert m03[3:6] == (1, 1, 1)
+    assert m03[6] == Decimal("4700.00")
+    assert m03[7:] == (Decimal("700.00"), Decimal("100.00"), Decimal("200.00"), Decimal("400.00"))
+    assert m11 == (Decimal("700.00"), Decimal("100.00"), Decimal("200.00"), Decimal("400.00"), 1, 1)
+
+    assert m07["Forn A"] == (1, 1, Decimal("100.00"), Decimal("100.00"), "federal")
+    assert m07["Forn B"] == (1, 1, Decimal("200.00"), Decimal("200.00"), "sem_informacao")
+    assert m07["Forn C"] == (2, 1, Decimal("3600.00"), Decimal("400.00"), "restrita")
+    assert m07["Forn D"] == (1, 0, Decimal("800.00"), Decimal("0.00"), None)
+
+
 def test_mart_apagado_desaparece_e_mart_vazio_faz_rollback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
