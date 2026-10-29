@@ -55,6 +55,7 @@ MARTS_PAINEL: tuple[str, ...] = (
     "gastos_por_partido",
     "kpis",
     "deputados_por_uf",
+    "divulgacao_eleitoral",
 )
 
 COR_PRINCIPAL = "#1A6B52"
@@ -496,6 +497,82 @@ def grafico_gastos_mensais(df: pd.DataFrame, parcial: bool = False) -> go.Figure
     fig.update_xaxes(tickvals=list(dados["mes"]), ticktext=[_mes_abrev(m) for m in dados["mes"]])
     fig.update_yaxes(rangemode="tozero")
     fig.update_layout(height=290)
+    return fig
+
+
+def _posicao_no_ano(data: object) -> float:
+    """Posição de uma data no eixo de meses (1 = início de janeiro), só para desenhar a faixa."""
+    dia = pd.Timestamp(data)
+    return dia.month + (dia.day - 1) / dia.days_in_month
+
+
+def grafico_divulgacao_eleitoral(df: pd.DataFrame, ano: int) -> go.Figure:
+    """13 · Divulgação do mandato no ano × ano anterior, com a vedação dos 120 dias antes da eleição."""
+    fig = go.Figure()
+    for ano_serie, cor, largura in ((ano - 1, COR_NEUTRA, 2), (ano, COR_PRINCIPAL, 3)):
+        serie = df[df["ano"] == ano_serie].sort_values("mes")
+        if serie.empty:
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=[pd.Timestamp(m).month for m in serie["mes"]],
+                y=serie["despesa_divulgacao"],
+                customdata=serie[["deputados_divulgacao"]],
+                mode="lines+markers",
+                line={"color": cor, "width": largura},
+                marker={"size": 7, "color": cor},
+                name=str(ano_serie),
+                hovertemplate=(
+                    f"<b>%{{x}}/{ano_serie}</b><br>Divulgação: R$ %{{y:,.2f}}"
+                    "<br>Deputados com divulgação: %{customdata[0]}<extra></extra>"
+                ),
+            )
+        )
+
+    atual = df[df["ano"] == ano]
+    eleicao = atual["data_eleicao"].dropna()
+    if eleicao.empty:
+        subtitulo = f"Sem eleição em {ano}: nenhum período de vedação à divulgação"
+    else:
+        data_eleicao = pd.Timestamp(eleicao.iloc[0])
+        inicio = pd.Timestamp(atual["inicio_vedacao"].dropna().iloc[0])
+        fig.add_vrect(
+            x0=_posicao_no_ano(inicio),
+            x1=_posicao_no_ano(data_eleicao),
+            fillcolor=COR_DESTAQUE,
+            opacity=0.12,
+            line_width=0,
+            annotation_text="<b>vedação: 120 dias antes da eleição</b>",
+            annotation_position="top left",
+            annotation_font={"family": FONTE_PADRAO, "size": 10, "color": COR_TEXTO},
+        )
+        subtitulo = (
+            f"Eleição em {data_eleicao:%d/%m/%Y}: a cota não paga divulgação de {inicio:%d/%m} até lá"
+            " (Ato nº 43/2009, art. 2º, XII)"
+        )
+
+    fig = _aplicar_layout_base(
+        fig,
+        f"13 · Divulgação do mandato: {ano} × {ano - 1} (R$)",
+        "Mês de competência",
+        "Divulgação (R$)",
+        margem_esquerda=80,
+        subtitulo=subtitulo,
+    )
+    fig.update_xaxes(range=[0.5, 12.5], tickvals=list(range(1, 13)), ticktext=list(_MESES_ABREV))
+    fig.update_yaxes(rangemode="tozero")
+    fig.update_layout(
+        height=290,
+        showlegend=True,
+        legend={
+            "orientation": "h",
+            "x": 1,
+            "xanchor": "right",
+            "y": 1.02,
+            "yanchor": "bottom",
+            "font": {"family": FONTE_PADRAO, "size": 11, "color": COR_TEXTO},
+        },
+    )
     return fig
 
 

@@ -50,3 +50,10 @@ Todas as regras que comparavam marts de uma linha passam a comparar ano a ano (j
 - Passos: `uv sync` → `scripts/baixar_dados_oficiais.py` → `pytest` → `executar.py` (pipeline do zero + qualidade + relatórios). Qualquer falha encerra o job e a página anterior continua no ar.
 - Commit direto na `main` **apenas dos `relatorio*.html`**, e só se mudaram.
   - *Motivo de não commitar `raw/`*: os arquivos brutos somam ~14 MB e mudam toda semana (CEAP do ano corrente e CEIS do dia); versioná-los semanalmente faria o repositório crescer centenas de MB por ano. O retrato em `raw/` continua servindo para rodar o projeto offline e é atualizado à mão quando for útil.
+
+## 8. DIVULGAÇÃO NO PERÍODO ELEITORAL (`sql/marts/13_divulgacao_eleitoral.sql` → `marts.divulgacao_eleitoral`)
+- Grão: um mês de competência `(ano, mes)`, com `despesa_divulgacao` (categorias que começam com "DIVULGA"), `despesa_demais` e `deputados_divulgacao`.
+- Regra testada: o art. 2º, XII, do Ato da Mesa n. 43/2009 só deixa a cota pagar divulgação da atividade parlamentar **fora** dos 120 dias anteriores às eleições federais, estaduais ou municipais, salvo para quem não é candidato.
+- `data_eleicao`: primeiro domingo de outubro dos anos pares (Constituição, arts. 28, 29 e 77), calculada no SQL; `NULL` em anos ímpares. `inicio_vedacao = data_eleicao - 120 dias`.
+  - *Motivo de calcular, não digitar*: a regra constitucional vale para qualquer ano futuro sem manutenção.
+- **Qualidade**: `despesa_divulgacao + despesa_demais` bate com `marts.gastos_mensais.despesa_liquida` em todos os meses.

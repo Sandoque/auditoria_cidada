@@ -1,5 +1,6 @@
 """Testes unitários do executor `pipeline/marts.py`, dos marts SQL e de `pipeline/qualidade.py`."""
 
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -389,8 +390,19 @@ def test_marts_separam_anos_e_trocam_limite_no_meio_do_mes(
         pct_categorias = con.execute(
             "SELECT ano, sum(pct_total) FROM marts.gastos_por_categoria GROUP BY ano ORDER BY ano"
         ).fetchall()
+        divulgacao = con.execute("""
+            SELECT ano, despesa_divulgacao, despesa_demais, data_eleicao, inicio_vedacao
+            FROM marts.divulgacao_eleitoral ORDER BY mes
+        """).fetchall()
     finally:
         con.close()
+
+    # Maio/2025: R$ 900 de DIVULGACAO e R$ 300 de combustível; 2025 não tem eleição.
+    # Fevereiro/2026: só passagem; eleição no 1º domingo de outubro (04/10/2026), vedação desde 06/06/2026.
+    assert divulgacao == [
+        (2025, Decimal("900.00"), Decimal("300.00"), None, None),
+        (2026, Decimal("0.00"), Decimal("2090.00"), date(2026, 10, 4), date(2026, 6, 6)),
+    ]
 
     # 2025 vai até maio (último mês com dados): 151 dias × R$ 1.000/mês = R$ 5.000 de teto para R$ 1.200 gastos
     assert teto[(2025, "101")] == (151, 5.0, 5000.0, 24.0, "oficial")

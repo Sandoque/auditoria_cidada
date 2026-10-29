@@ -165,12 +165,20 @@ def renderizar_pagina() -> None:
             theme=None,
         )
 
-    # Faixa 5: Largura inteira, compacta — ritmo mensal (série quase plana, eixo a partir de zero)
-    st.plotly_chart(
-        painel.grafico_gastos_mensais(dados["gastos_mensais"], parcial=periodo.parcial),
-        width="stretch",
-        theme=None,
-    )
+    # Faixa 5: Duas colunas compactas — ritmo mensal e divulgação no período eleitoral (compara com o ano anterior)
+    f5_col1, f5_col2 = st.columns(2)
+    with f5_col1:
+        st.plotly_chart(
+            painel.grafico_gastos_mensais(dados["gastos_mensais"], parcial=periodo.parcial),
+            width="stretch",
+            theme=None,
+        )
+    with f5_col2:
+        st.plotly_chart(
+            painel.grafico_divulgacao_eleitoral(dados_todos["divulgacao_eleitoral"], ano),
+            width="stretch",
+            theme=None,
+        )
 
 
 if __name__ == "__main__":

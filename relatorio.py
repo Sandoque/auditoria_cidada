@@ -3,13 +3,13 @@
 SPEC DO MÓDULO (Fonte da Verdade):
 1. Lê os marts com painel.ler(), desenha os cartões com painel.cartoes() e
    painel.html_cartoes(), a tabela de deputados com painel.tabela_deputados() e
-   os sete gráficos com as funções de painel.py. Não importa streamlit.
+   os oito gráficos com as funções de painel.py. Não importa streamlit.
 2. Escreve uma página por ano com as cinco faixas do painel na mesma ordem:
    relatorio.html para o ano mais recente e relatorio_AAAA.html para cada ano
    anterior, todas com links entre os anos e aviso quando o ano está parcial.
    Em cada página, a biblioteca Plotly vem do CDN uma única vez no primeiro gráfico
    da página (include_plotlyjs="cdn") e nos demais include_plotlyjs=False, com
-   div_id fixos ("g01" a "g07", na ordem da página) para determinismo entre execuções.
+   div_id fixos ("g01" a "g08", na ordem da página) para determinismo entre execuções.
 3. A tabela de deputados vem renderizada no HTML (funciona sem JavaScript) e os
    filtros por UF, partido e nome usam JavaScript puro, sem biblioteca externa.
    A marcação omite tags de fechamento opcionais para caber no limite de tamanho.
@@ -133,7 +133,13 @@ def _html_navegacao(ano_atual: int, anos: list[int], caminho_saida: Path) -> str
     return '<nav class="anos">Ano: ' + " · ".join(itens) + "</nav>"
 
 
-def _html_pagina(dados: dict[str, pd.DataFrame], ano: int, anos: list[int], caminho_saida: Path) -> str:
+def _html_pagina(
+    dados: dict[str, pd.DataFrame],
+    ano: int,
+    anos: list[int],
+    caminho_saida: Path,
+    divulgacao_todos_anos: pd.DataFrame,
+) -> str:
     periodo = painel.periodo(dados)
     aviso = f'<p class="aviso">{html.escape(painel.AVISO_ANO_PARCIAL)}</p>' if periodo.parcial else ""
     html_cartoes = painel.html_cartoes(painel.cartoes(dados["kpis"].iloc[0]))
@@ -148,6 +154,7 @@ def _html_pagina(dados: dict[str, pd.DataFrame], ano: int, anos: list[int], cami
         painel.grafico_glosas(dados["glosa_por_categoria"]),
         painel.grafico_pareto_fornecedores(dados["fornecedores_pareto"]),
         painel.grafico_gastos_mensais(dados["gastos_mensais"], parcial=periodo.parcial),
+        painel.grafico_divulgacao_eleitoral(divulgacao_todos_anos, ano),
     ]
     g = [
         fig.to_html(full_html=False, include_plotlyjs="cdn" if i == 0 else False, div_id=f"g{i + 1:02d}")
@@ -199,6 +206,12 @@ def _html_pagina(dados: dict[str, pd.DataFrame], ano: int, anos: list[int], cami
       padding: 8px;
       margin-bottom: 16px;
     }}
+    .row-2 {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }}
     .row-3 {{
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -229,7 +242,7 @@ def _html_pagina(dados: dict[str, pd.DataFrame], ano: int, anos: list[int], cami
       text-align: right;
     }}
     @media (max-width: 1100px) {{
-      .row-3 {{ grid-template-columns: 1fr; }}
+      .row-2, .row-3 {{ grid-template-columns: 1fr; }}
     }}
     @media (max-width: 600px) {{
       body {{ padding: 16px; }}
@@ -274,8 +287,9 @@ def _html_pagina(dados: dict[str, pd.DataFrame], ano: int, anos: list[int], cami
     <div class="chart-box">{g[5]}</div>
   </section>
 
-  <section class="row-full">
-    {g[6]}
+  <section class="row-2">
+    <div class="chart-box">{g[6]}</div>
+    <div class="chart-box">{g[7]}</div>
   </section>
 
   <footer>Dados de {carimbo} · Pipeline Auditoria Cidadã (DuckDB + Python)</footer>
@@ -295,7 +309,10 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
     for ano in anos:
         caminho = _caminho_do_ano(caminho_saida, ano, anos[0])
         caminho.write_text(
-            _html_pagina(painel.do_ano(dados_todos, ano), ano, anos, caminho_saida), encoding="utf-8"
+            _html_pagina(
+                painel.do_ano(dados_todos, ano), ano, anos, caminho_saida, dados_todos["divulgacao_eleitoral"]
+            ),
+            encoding="utf-8"
         )
         tamanho_kb = caminho.stat().st_size / 1024.0
         print(f"✓ {caminho} ({tamanho_kb:.1f} KB)")

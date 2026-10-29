@@ -106,6 +106,15 @@ def executar_qualidade() -> list[tuple[str, bool, str]]:
             """,
         ),
         (
+            "As partes somam o todo (divulgação + demais categorias == despesa do mês, marts 13 e 01)",
+            """
+            SELECT count(*) = (SELECT count(*) FROM marts.gastos_mensais)
+               AND bool_and(d.despesa_divulgacao + d.despesa_demais = m.despesa_liquida)
+            FROM marts.divulgacao_eleitoral AS d
+            JOIN marts.gastos_mensais AS m ON m.mes = d.mes
+            """,
+        ),
+        (
             "Dois caminhos concordam em fornecedores sancionados (mart 03 vs soma do mart 07, ano a ano)",
             """
             WITH m07 AS (
