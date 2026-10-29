@@ -6,6 +6,10 @@ Execução:
 Regra central: este arquivo não calcula nenhum indicador; apenas lê os DataFrames
 prontos via painel.ler(), desenha os cartões de painel.cartoes(), a tabela de
 painel.tabela_deputados() e as figuras Plotly em 5 faixas.
+
+Deploy (Streamlit Community Cloud): o auditoria.duckdb não é versionado. Se ele não
+existir, garantir_banco() roda ingestão, transformação e marts a partir de raw/ uma
+única vez por servidor; localmente, com o banco já gerado, não faz nada.
 """
 
 import importlib
@@ -47,8 +51,20 @@ _CSS_ALTO_CONTRASTE = """
 """
 
 
+@st.cache_resource(show_spinner="Montando o banco a partir de raw/ (só na primeira visita, 1 a 2 minutos)...")
+def garantir_banco() -> None:
+    if painel.CAMINHO_BANCO.is_file():
+        return
+    from pipeline import ingestao, marts, transformacao
+
+    ingestao.executar_ingestao()
+    transformacao.executar_transformacao()
+    marts.executar_marts()
+
+
 @st.cache_data
 def carregar_dados() -> dict[str, pd.DataFrame]:
+    garantir_banco()
     return painel.ler()
 
 
