@@ -1,0 +1,119 @@
+"""Testes unitários de `painel.py`, `relatorio.py` e `pipeline/qualidade.py`."""
+
+from pathlib import Path
+
+import duckdb
+import pytest
+
+import painel
+import relatorio
+from pipeline import db, marts, qualidade
+
+
+def _popular_refined_sintetico(con: duckdb.DuckDBPyConnection) -> None:
+    db.criar_schema(con, "refined")
+    con.execute("""
+        CREATE TABLE refined.despesas_ceap AS
+        SELECT * FROM (
+            VALUES
+            -- Lançamento 1: Dep 101 em SP, fornecedor sancionado durante vigência
+            ('1', 'Dep Alfa', '101', 'SP', 'PA', 57, 1, 'DIVULGACAO', 'Forn Punido', '01234567000199', 'NF1', 0,
+             TIMESTAMP '2025-05-10 10:00:00', DECIMAL '1000.00', DECIMAL '100.00', DECIMAL '900.00', 2025, 5, 0, 1, 1),
+            -- Lançamento 2: Dep 101 em SP, fornecedor limpo
+            ('2', 'Dep Alfa', '101', 'SP', 'PA', 57, 2, 'COMBUSTIVEL', 'Posto Limpo', '99888777000166', 'NF2', 0,
+             TIMESTAMP '2025-05-12 12:00:00', DECIMAL '300.00', DECIMAL '0.00', DECIMAL '300.00', 2025, 5, 0, 1, 1)
+        ) AS t(
+            documento_id, nome_parlamentar, deputado_id, uf, partido, legislatura_id, subcota_id,
+            categoria_despesa, nome_fornecedor, documento_fornecedor, numero_documento, tipo_documento_id,
+            data_emissao, valor_documento, valor_glosa, valor_liquido, ano_competencia, mes_competencia,
+            parcela, lote_id, cadastro_interno_id
+        )
+    """)
+    con.execute("""
+        CREATE TABLE refined.deputados AS
+        SELECT '101' AS deputado_id, 'Dep Alfa' AS nome_parlamentar, 'ALFA' AS nome_civil,
+               56 AS legislatura_inicial_id, 57 AS legislatura_final_id, 'F' AS sexo,
+               DATE '1980-01-01' AS data_nascimento, CAST(NULL AS DATE) AS data_falecimento,
+               'SP' AS uf_nascimento, 'São Paulo' AS municipio_nascimento
+    """)
+    con.execute("""
+        CREATE TABLE refined.sancoes_ceis AS
+        SELECT 'S1' AS sancao_id, 'J' AS tipo_pessoa, '01234567000199' AS documento_sancionado,
+               'Forn Punido' AS nome_sancionado, 'Forn Punido' AS razao_social_receita,
+               'Suspensão' AS categoria_sancao, DATE '2025-01-01' AS data_inicio_sancao,
+               DATE '2025-12-31' AS data_fim_sancao, DATE '2025-01-02' AS data_publicacao,
+               'Nacional' AS abrangencia_sancao, 'CGU' AS orgao_sancionador,
+               'DF' AS uf_orgao_sancionador, 'Federal' AS esfera_orgao_sancionador
+    """)
+    con.execute("""
+        CREATE TABLE refined.cotas_uf AS
+        SELECT 35 AS codigo_ibge, 'SP' AS uf, 'São Paulo' AS nome_estado,
+               'Sudeste' AS regiao, DECIMAL '41150.25' AS limite_mensal_cota
+    """)
+
+
+def test_formatadores_puros_independem_de_locale() -> None:
+    assert painel.reais(1003862.14) == "R$ 1.003.862,14"
+    assert painel.reais(240.04, casas=2) == "R$ 240,04"
+    assert painel.pct(93.2, casas=1) == "93,2%"
+    assert painel.pct(0.47, casas=2) == "0,47%"
+    assert painel.numero(96470, casas=0) == "96.470"
+
+
+def test_painel_e_relatorio_sobre_banco_sintetico(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    banco = tmp_path / "sintetico.duckdb"
+    monkeypatch.setattr(db, "CAMINHO_BANCO", banco)
+    monkeypatch.setattr(painel, "CAMINHO_BANCO", banco)
+
+    con = db.conectar()
+    try:
+        _popular_refined_sintetico(con)
+        db.criar_schema(con, "raw")
+        con.execute("CREATE TABLE raw.despesas_ceap AS SELECT * FROM refined.despesas_ceap")
+    finally:
+        con.close()
+
+    marts.executar_marts()
+    dados = painel.ler()
+
+    assert set(dados.keys()) == set(painel.MARTS_PAINEL)
+    assert len(painel.grafico_gastos_mensais(dados["gastos_mensais"]).data[0].x) == len(dados["gastos_mensais"])
+    assert len(painel.grafico_categorias(dados["gastos_por_categoria"]).data[0].x) == len(dados["gastos_por_categoria"])
+    assert len(painel.grafico_partidos(dados["gastos_por_partido"]).data[0].x) == len(dados["gastos_por_partido"])
+    assert len(painel.grafico_gasto_uf(dados["gasto_medio_por_uf"]).data[0].x) == len(dados["gasto_medio_por_uf"])
+    assert len(painel.grafico_fornecedores_ceis(dados["fornecedores_sancionados"]).data[0].x) == len(dados["fornecedores_sancionados"])
+    assert len(painel.grafico_glosas(dados["glosa_por_categoria"]).data[0].x) == len(dados["glosa_por_categoria"])
+    assert len(painel.grafico_pareto_fornecedores(dados["fornecedores_pareto"]).data[0].x) == len(dados["fornecedores_pareto"])
+
+    arq_html_1 = tmp_path / "rel1.html"
+    arq_html_2 = tmp_path / "rel2.html"
+    relatorio.gerar_relatorio(arq_html_1)
+    relatorio.gerar_relatorio(arq_html_2)
+
+    assert arq_html_1.is_file()
+    assert arq_html_1.stat().st_size < 200 * 1024
+    linhas_1 = [ln for ln in arq_html_1.read_text(encoding="utf-8").splitlines() if "<footer>" not in ln]
+    linhas_2 = [ln for ln in arq_html_2.read_text(encoding="utf-8").splitlines() if "<footer>" not in ln]
+    assert linhas_1 == linhas_2
+
+
+def test_qualidade_detecta_quebra_de_reconciliacao(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    banco = tmp_path / "qualidade.duckdb"
+    monkeypatch.setattr(db, "CAMINHO_BANCO", banco)
+
+    con = db.conectar()
+    try:
+        _popular_refined_sintetico(con)
+        db.criar_schema(con, "raw")
+        con.execute("CREATE TABLE raw.despesas_ceap AS SELECT * FROM refined.despesas_ceap")
+    finally:
+        con.close()
+
+    marts.executar_marts()
+    with pytest.raises(SystemExit) as exc:
+        qualidade.executar_qualidade()
+    assert exc.value.code == 1

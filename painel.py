@@ -23,8 +23,8 @@ SPEC DO MÓDULO (Fonte da Verdade):
 """
 
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import duckdb
 import pandas as pd
@@ -53,26 +53,26 @@ COR_DESTAQUE = "#B85C00"
 COR_GRADE = "#E2E8E4"
 
 
-def _formatar_br(valor: float | int, casas: int = 2) -> str:
+def _formatar_br(valor: float, casas: int = 2) -> str:
     num = float(valor)
     if casas <= 0:
-        inteiro = int(round(num))
+        inteiro = round(num)
         return f"{inteiro:,}".replace(",", ".")
     texto = f"{num:,.{casas}f}"
     return texto.replace(",", "_").replace(".", ",").replace("_", ".")
 
 
-def reais(valor: float | int, casas: int = 2) -> str:
+def reais(valor: float, casas: int = 2) -> str:
     """Formata número como moeda em reais: R$ 1.003.862,14."""
     return f"R$ {_formatar_br(valor, casas)}"
 
 
-def pct(valor: float | int, casas: int = 1) -> str:
+def pct(valor: float, casas: int = 1) -> str:
     """Formata número como percentual: 93,2%."""
     return f"{_formatar_br(valor, casas)}%"
 
 
-def numero(valor: float | int, casas: int = 0) -> str:
+def numero(valor: float, casas: int = 0) -> str:
     """Formata número com separador de milhar brasileiro: 96.470."""
     return _formatar_br(valor, casas)
 
@@ -116,13 +116,13 @@ def ler(marts: Iterable[str] = MARTS_PAINEL) -> dict[str, pd.DataFrame]:
 
 def _aplicar_layout_base(fig: go.Figure, titulo: str, eixo_x: str, eixo_y: str) -> go.Figure:
     fig.update_layout(
-        title=dict(text=titulo, font=dict(size=15, color="#10171A")),
+        title={"text": titulo, "font": {"size": 15, "color": "#10171A"}},
         xaxis_title=eixo_x,
         yaxis_title=eixo_y,
         plot_bgcolor="#FFFFFF",
         paper_bgcolor="#FFFFFF",
-        font=dict(family="Segoe UI, Arial, sans-serif", size=12, color="#39474A"),
-        margin=dict(l=16, r=20, t=48, b=36),
+        font={"family": "Segoe UI, Arial, sans-serif", "size": 12, "color": "#39474A"},
+        margin={"l": 16, "r": 20, "t": 48, "b": 36},
         height=340,
     )
     fig.update_xaxes(showgrid=True, gridcolor=COR_GRADE, zeroline=False)
@@ -139,8 +139,8 @@ def grafico_gastos_mensais(df: pd.DataFrame) -> go.Figure:
             x=dados["mes"],
             y=dados["despesa_liquida"],
             mode="lines+markers",
-            line=dict(color=COR_PRINCIPAL, width=3),
-            marker=dict(size=8, color=COR_PRINCIPAL),
+            line={"color": COR_PRINCIPAL, "width": 3},
+            marker={"size": 8, "color": COR_PRINCIPAL},
             name="Despesa líquida (R$)",
         )
     )
@@ -267,7 +267,7 @@ def grafico_pareto_fornecedores(df: pd.DataFrame) -> go.Figure:
             x=dados["posicao"],
             y=dados["pct_acumulado"],
             mode="lines",
-            line=dict(color=COR_PRINCIPAL, width=3),
+            line={"color": COR_PRINCIPAL, "width": 3},
             name="% acumulado da despesa",
         )
     )

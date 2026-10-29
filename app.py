@@ -9,6 +9,7 @@ prontos via painel.ler(), formata os cartões e exibe as figuras Plotly em 4 fai
 
 import pandas as pd
 import streamlit as st
+
 import painel
 
 st.set_page_config(

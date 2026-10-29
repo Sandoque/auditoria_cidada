@@ -37,7 +37,9 @@ SPEC DO MÓDULO (Fonte da Verdade):
 """
 
 import sys
+
 import duckdb
+
 from pipeline import db
 
 TABELAS_ENTRADA: tuple[str, ...] = (

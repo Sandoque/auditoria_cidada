@@ -25,6 +25,7 @@ import sys
 from pathlib import Path
 
 import duckdb
+
 from pipeline import db
 
 PASTA_MARTS = db.RAIZ_PROJETO / "sql" / "marts"
@@ -140,11 +141,8 @@ def executar_marts() -> int:
                 resultados.append((nome_tabela, contagem))
 
             con.execute("COMMIT")
-        except Exception as exc:
-            try:
-                con.execute("ROLLBACK")
-            except Exception:
-                pass
+        except (duckdb.Error, RuntimeError, ValueError, OSError) as exc:
+            con.execute("ROLLBACK")
             nome_arq = caminho_sql.name if "caminho_sql" in locals() else "<desconhecido>"
             print(f"Erro ao executar {nome_arq}: {exc}", file=sys.stderr)
             sys.exit(1)

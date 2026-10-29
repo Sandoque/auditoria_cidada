@@ -27,7 +27,9 @@ SPEC DO MÓDULO (Fonte da Verdade):
 """
 
 import sys
+
 import pandas as pd
+
 from pipeline import db
 
 MAPA_ARQUIVOS: tuple[tuple[str, str], ...] = (

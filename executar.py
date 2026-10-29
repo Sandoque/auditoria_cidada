@@ -9,8 +9,9 @@ Apaga o arquivo auditoria.duckdb se existir e executa em sequência:
 """
 
 import sys
-from pipeline import db, ingestao, transformacao, marts, qualidade
+
 import relatorio
+from pipeline import db, ingestao, marts, qualidade, transformacao
 
 
 def main() -> None:

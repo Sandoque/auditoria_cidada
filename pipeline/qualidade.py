@@ -12,7 +12,7 @@ Aplica as sete famílias de regras de qualidade de dados (Aula 4, seção 09):
 """
 
 import sys
-import duckdb
+
 from pipeline import db
 
 
@@ -46,8 +46,10 @@ def executar_qualidade() -> list[tuple[str, bool, str]]:
         ),
         (
             "Dentro do domínio (pct_valor_regular entre 0 e 100 e mes_competencia entre 1 e 12)",
-            "SELECT (SELECT pct_valor_regular BETWEEN 0 AND 100 FROM marts.conformidade_ceis) "
-            "AND (SELECT count(*) FILTER (WHERE mes_competencia NOT BETWEEN 1 AND 12) = 0 FROM refined.despesas_ceap)",
+            """
+            SELECT (SELECT pct_valor_regular BETWEEN 0 AND 100 FROM marts.conformidade_ceis)
+               AND (SELECT count(*) FILTER (WHERE mes_competencia NOT BETWEEN 1 AND 12) = 0 FROM refined.despesas_ceap)
+            """,
         ),
         (
             "As partes somam o todo (lancamentos_limpos + lancamentos_ceis == total_lancamentos no mart 03)",

@@ -11,9 +11,9 @@ SPEC DO MÓDULO (Fonte da Verdade):
    imprime o caminho do arquivo e seu tamanho em KB.
 """
 
+import sys
 from datetime import datetime
 from pathlib import Path
-import sys
 
 import painel
 
