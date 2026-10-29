@@ -15,3 +15,16 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.17.3",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["test/*", "app.py", "ui.py", "executar.py", "scripts/*", ".venv/*"]
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
+

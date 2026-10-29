@@ -1,0 +1,26 @@
+name: CI · Testes e Qualidade de Código
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main", "dev"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sincronizar dependências
+        run: uv sync
+
+      - name: Verificar estilo e lint (Ruff)
+        run: uv run ruff check .
+
+      - name: Executar testes unitários e cobertura (Pytest >= 60%)
+        run: uv run pytest --cov
