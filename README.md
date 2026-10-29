@@ -76,11 +76,11 @@ Apresentação (zero cálculo na tela: apenas SELECT * FROM marts.<nome>)
 | :--- | :--- | :--- | ---: | :--- |
 | `01_gastos_mensais.sql` | `marts.gastos_mensais` | Um mês de competência | 12 | Total `R$ 215.109.771,74` · Pico out/2025: `R$ 18.827.804,70` |
 | `02_gastos_por_categoria.sql` | `marts.gastos_por_categoria` | Uma categoria de despesa | 18 | Total `R$ 215.109.771,74` · 1.ª Divulgação: `R$ 102.059.898,64` (47,4%) |
-| `03_conformidade_ceis.sql` | `marts.conformidade_ceis` | A operação inteira (1 linha) | 1 | `171.026` válidos · `2.976` no CEIS (`R$ 1.816.195,33`) · `50` em sanção vigente (`R$ 296.423,45`) |
+| `03_conformidade_ceis.sql` | `marts.conformidade_ceis` | A operação inteira (1 linha) | 1 | `171.026` válidos · `2.976` no CEIS (`R$ 1.816.195,33`) · `50` em sanção vigente (`R$ 296.423,45`), dos quais só `5` (`R$ 10.553,61`) com alcance federal · `R$ 192.079,60` restrita a outro órgão · `R$ 93.790,24` sem informação |
 | `04_ranking_deputados.sql` | `marts.ranking_deputados` | Um deputado federal ativo | 562 | Ranking com `rank() OVER` + dados civis e região IBGE |
 | `05_recorrencia_fornecedores.sql` | `marts.recorrencia_fornecedores` | Uma faixa de qtd. de pagamentos | 7 | `22.250` fornecedores · `42,37%` pagamento único · `57,63%` recorrentes (2+) |
 | `06_gasto_medio_por_uf.sql` | `marts.gasto_medio_por_uf` | Uma UF (grão muda 2x) | 27 | Maior média anual/deputado: `AC` (`R$ 532.679,03`) e `RR` (`R$ 519.274,63`) · `SP`: `R$ 336.942,01` |
-| `07_fornecedores_sancionados.sql` | `marts.fornecedores_sancionados` | Um CNPJ/CPF sancionado no CEIS com pagamento na CEAP | 19 | `14` com recebimento em vigência (`ACTON PROMOÇÕES`: `R$ 169.000,00`; `IMAGE NATION`: `R$ 49.800,00`) |
+| `07_fornecedores_sancionados.sql` | `marts.fornecedores_sancionados` | Um CNPJ/CPF sancionado no CEIS com pagamento na CEAP | 19 | `14` com recebimento em vigência (`ACTON PROMOÇÕES`: `R$ 169.000,00`, sanção restrita a outro órgão; `IMAGE NATION`: `R$ 49.800,00`, sem informação de alcance) · coluna `alcance_sancao_vigente` (regra em `specs/marts.md`, seção 6) |
 | `08_glosa_por_categoria.sql` | `marts.glosa_por_categoria` | Uma categoria de despesa | 18 | Total glosado `R$ 1.012.889,88` em `9.873` notas · Maior corte: Locação de veículos (`R$ 281.403,14`) |
 | `09_fornecedores_pareto.sql` | `marts.fornecedores_pareto` | Um fornecedor com venda válida | 22.250 | `80%` de toda a despesa concentrados na posição `1.765` (`7,93%` dos fornecedores) |
 | `10_gastos_por_partido.sql` | `marts.gastos_por_partido` | Um partido (ou `'LIDERANCAS'`) | 23 | Soma `R$ 215.109.771,74` (inclui os 937 lançamentos de lideranças sem partido individual) |

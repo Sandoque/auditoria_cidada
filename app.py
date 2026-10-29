@@ -4,7 +4,8 @@ Execução:
     uv run streamlit run app.py
 
 Regra central: este arquivo não calcula nenhum indicador; apenas lê os DataFrames
-prontos via painel.ler(), formata os cartões e exibe as figuras Plotly em 4 faixas.
+prontos via painel.ler(), desenha os cartões de painel.cartoes() e exibe as figuras
+Plotly em 4 faixas.
 """
 
 import importlib
@@ -33,27 +34,6 @@ _CSS_ALTO_CONTRASTE = """
     font-weight: 500 !important;
     opacity: 1 !important;
   }
-  [data-testid="stMetric"] {
-    background-color: #FFFFFF !important;
-    border: 1px solid #CBD5E1 !important;
-    border-top: 4px solid #1A6B52 !important;
-    border-radius: 8px !important;
-    padding: 12px 14px !important;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
-  }
-  [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] p, [data-testid="stMetricLabel"] div {
-    color: #0F172A !important;
-    font-weight: 600 !important;
-    font-size: 0.82rem !important;
-    line-height: 1.25 !important;
-    white-space: normal !important;
-    opacity: 1 !important;
-  }
-  [data-testid="stMetricValue"], [data-testid="stMetricValue"] div {
-    color: #0B1315 !important;
-    font-weight: 700 !important;
-    font-size: 1.15rem !important;
-  }
   .stButton > button {
     background-color: #1A6B52 !important;
     color: #FFFFFF !important;
@@ -75,6 +55,7 @@ def carregar_dados() -> dict[str, pd.DataFrame]:
 def renderizar_pagina() -> None:
     importlib.reload(painel)
     st.markdown(_CSS_ALTO_CONTRASTE, unsafe_allow_html=True)
+    st.markdown(f"<style>{painel.CSS_CARTOES}</style>", unsafe_allow_html=True)
 
     col_titulo, col_botao = st.columns([5, 1])
     with col_titulo:
@@ -85,6 +66,15 @@ def renderizar_pagina() -> None:
 
     try:
         dados = carregar_dados()
+        cartoes = painel.cartoes(dados["kpis"].iloc[0])
+    except KeyError as exc:
+        st.error(
+            f"A coluna {exc} não existe em marts.kpis: o banco foi gerado por uma versão "
+            "anterior dos marts.\n\nExecute no terminal `uv run python -m pipeline.marts` "
+            "e clique em **Recarregar dados**."
+        )
+        st.stop()
+        return
     except (FileNotFoundError, LookupError) as exc:
         st.error(
             f"{exc}\n\nPara gerar os marts, execute no terminal:\n"
@@ -113,36 +103,7 @@ def renderizar_pagina() -> None:
         df_mensal_filtrado = df_mensal
 
     # Faixa 1: Sete cartões executivos (lidos diretamente de marts.kpis)
-    kpi = dados["kpis"].iloc[0]
-    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
-    c1.metric(
-        "Despesa líquida · válida",
-        painel.reais(kpi["despesa_total_reais"]),
-    )
-    c2.metric(
-        "Ticket médio · por nota",
-        painel.reais(kpi["ticket_medio_nota"]),
-    )
-    c3.metric(
-        "Taxa de glosa · % cortado",
-        painel.pct(kpi["pct_glosado"], casas=2),
-    )
-    c4.metric(
-        "Fornecedores recorrentes · 2+",
-        painel.pct(kpi["pct_fornecedores_recorrentes"], casas=2),
-    )
-    c5.metric(
-        "Valor regular · fora do CEIS",
-        painel.pct(kpi["pct_valor_regular"], casas=2),
-    )
-    c6.metric(
-        "Pago em sanção ativa · CEIS",
-        painel.reais(kpi["despesa_sancao_vigente"]),
-    )
-    c7.metric(
-        "Notas em sanção ativa · CEIS",
-        painel.numero(kpi["lancamentos_sancao_vigente"], casas=0),
-    )
+    st.markdown(painel.html_cartoes(cartoes), unsafe_allow_html=True)
 
     # Faixa 2: Largura inteira — evolução mensal
     st.plotly_chart(

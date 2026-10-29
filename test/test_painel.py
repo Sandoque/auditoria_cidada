@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import duckdb
+import pandas as pd
 import pytest
 
 import painel
@@ -58,6 +59,44 @@ def test_formatadores_puros_independem_de_locale() -> None:
     assert painel.pct(93.2, casas=1) == "93,2%"
     assert painel.pct(0.47, casas=2) == "0,47%"
     assert painel.numero(96470, casas=0) == "96.470"
+    assert painel.reais_compacto(3456789.0) == "R$ 3,46 mi"
+    assert painel.reais_compacto(12345.0) == "R$ 12,3 mil"
+    assert painel.reais_compacto(840.0) == "R$ 840,00"
+
+
+def test_cartoes_separam_alcance_federal_e_so_ele_fica_em_alerta() -> None:
+    # Linha de kpis inventada: 3 notas federais em 2 fornecedores; o resto da sanção vigente é restrita/sem info
+    kpi = pd.Series({
+        "despesa_total_reais": 2500000.0,
+        "ticket_medio_nota": 500.0,
+        "ticket_mediana_nota": 120.0,
+        "pct_glosado": 1.5,
+        "valor_glosado_total": 37500.0,
+        "pct_fornecedores_recorrentes": 40.0,
+        "fornecedores_distintos": 1,
+        "pct_valor_regular": 98.0,
+        "despesa_fornecedores_ceis": 50000.0,
+        "despesa_sancao_vigente": 9000.0,
+        "despesa_sancao_vigente_federal": 1000.0,
+        "despesa_sancao_vigente_sem_info": 3000.0,
+        "despesa_sancao_vigente_restrita": 5000.0,
+        "lancamentos_sancao_vigente_federal": 3,
+        "fornecedores_sancao_vigente_federal": 2,
+    })
+    lista = painel.cartoes(kpi)
+
+    assert len(lista) == 7
+    assert [c.alerta for c in lista] == [False] * 6 + [True]
+    assert lista[0].valor == "R$ 2,50 mi"
+    assert lista[3].detalhe == "de 1 fornecedor"
+    assert lista[5].valor == "R$ 9.000,00"
+    assert lista[5].detalhe == "Restrita: R$ 5,0 mil · sem info: R$ 3,0 mil"
+    assert lista[6].valor == "R$ 1.000,00"
+    assert lista[6].detalhe == "3 notas · 2 fornecedores"
+
+    html = painel.html_cartoes([painel.Cartao("A < B", "1", "x & y", alerta=True)])
+    assert html.count('class="card card-alert"') == 1
+    assert "A &lt; B" in html and "x &amp; y" in html
 
 
 def test_painel_e_relatorio_sobre_banco_sintetico(
@@ -83,9 +122,22 @@ def test_painel_e_relatorio_sobre_banco_sintetico(
     assert len(painel.grafico_categorias(dados["gastos_por_categoria"]).data[0].x) == len(dados["gastos_por_categoria"])
     assert len(painel.grafico_partidos(dados["gastos_por_partido"]).data[0].x) == len(dados["gastos_por_partido"])
     assert len(painel.grafico_gasto_uf(dados["gasto_medio_por_uf"]).data[0].x) == len(dados["gasto_medio_por_uf"])
-    assert len(painel.grafico_fornecedores_ceis(dados["fornecedores_sancionados"]).data[0].x) == len(dados["fornecedores_sancionados"])
-    assert len(painel.grafico_glosas(dados["glosa_por_categoria"]).data[0].x) == len(dados["glosa_por_categoria"])
-    assert len(painel.grafico_pareto_fornecedores(dados["fornecedores_pareto"]).data[0].x) == len(dados["fornecedores_pareto"])
+    fig_ceis = painel.grafico_fornecedores_ceis(dados["fornecedores_sancionados"])
+    em_vigencia = dados["fornecedores_sancionados"]["valor_recebido_em_vigencia"] > 0
+    assert sum(len(trace.x) for trace in fig_ceis.data) == int(em_vigencia.sum())
+    # A sanção sintética tem abrangência 'Nacional', fora do domínio conhecido: cai em sem informação
+    assert [trace.name for trace in fig_ceis.data] == ["Vigente · alcance sem informação"]
+    assert fig_ceis.layout.title.subtitle.text == "Maior: FORN PUNIDO · R$ 900,00 · alcance sem informação"
+
+    fig_glosa = painel.grafico_glosas(dados["glosa_por_categoria"])
+    assert sorted(fig_glosa.data[0].x) == sorted(dados["glosa_por_categoria"]["pct_valor_glosado"])
+    assert fig_glosa.layout.title.subtitle.text.startswith("Maior taxa: DIVULGACAO (10,0%)")
+
+    # R$ 900 de R$ 1.200: a 1ª posição acumula 75%, a 2ª cruza os 80%
+    fig_pareto = painel.grafico_pareto_fornecedores(dados["fornecedores_pareto"])
+    assert len(fig_pareto.data[0].x) == len(dados["fornecedores_pareto"])
+    assert fig_pareto.layout.annotations[0].text == "<b>80% da despesa (pos. 2)</b>"
+    assert fig_pareto.layout.title.subtitle.text == "80% da despesa está em 2 de 2 fornecedores"
 
     arq_html_1 = tmp_path / "rel1.html"
     arq_html_2 = tmp_path / "rel2.html"
