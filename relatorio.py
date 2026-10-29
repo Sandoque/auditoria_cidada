@@ -79,9 +79,9 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
     :root {{
       --bg: #f4f6f4;
       --surface: #ffffff;
-      --ink: #10171a;
-      --muted: #4a5a5e;
-      --line: #cdd6cf;
+      --ink: #0b1315;
+      --muted: #1e293b;
+      --line: #cbd5e1;
       --accent: #1a6b52;
       --amber: #b85c00;
     }}
@@ -99,11 +99,13 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
     h1 {{
       margin: 0 0 4px 0;
       font-size: 24px;
+      color: var(--ink);
     }}
     .sub {{
       margin: 0;
       color: var(--muted);
       font-size: 14px;
+      font-weight: 500;
     }}
     .cards {{
       display: grid;
@@ -114,21 +116,25 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
     .card {{
       background: var(--surface);
       border: 1px solid var(--line);
-      border-top: 3px solid var(--accent);
+      border-top: 4px solid var(--accent);
       border-radius: 8px;
       padding: 12px 14px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
     }}
     .card-alert {{
       border-top-color: var(--amber);
     }}
     .card-label {{
-      font-size: 12px;
+      font-size: 12.5px;
+      font-weight: 600;
       color: var(--muted);
       margin-bottom: 6px;
+      line-height: 1.25;
     }}
     .card-value {{
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 700;
+      color: var(--ink);
     }}
     .card-alert .card-value {{
       color: var(--amber);
