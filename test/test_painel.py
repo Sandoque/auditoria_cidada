@@ -188,6 +188,9 @@ def test_painel_e_relatorio_sobre_banco_sintetico(
     assert [trace.name for trace in fig_2025.data] == ["2025"]
     assert len(fig_2025.layout.shapes) == 0
     assert fig_2025.layout.title.subtitle.text == "Sem eleição em 2025: nenhum período de vedação à divulgação"
+    # O título só promete comparação quando o ano anterior existe nos dados
+    assert "Divulgação do mandato: 2026 × 2025 (R$)" in fig_2026.layout.title.text
+    assert "Divulgação do mandato: 2025 (R$)" in fig_2025.layout.title.text
     dados = painel.do_ano(todos, 2025)
     assert all((df["ano"] == 2025).all() for df in dados.values())
     assert len(painel.grafico_gastos_mensais(dados["gastos_mensais"]).data[0].x) == len(dados["gastos_mensais"])

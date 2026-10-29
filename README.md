@@ -6,9 +6,9 @@
 
 Pipeline completo de Engenharia de Dados construído do zero com **Spec-Driven Development**, **Python**, **DuckDB**, **SQL**, **Streamlit**, **Plotly** e **Pytest** para auditar os desembolsos da **Cota para Exercício da Atividade Parlamentar (CEAP, de 2025 até o ano corrente)** cruzados com o **Cadastro Nacional de Empresas Inidôneas e Suspensas (CEIS/CGU)**, o **Cadastro e o Histórico de Mandatos dos Deputados** e os **Limites Oficiais de Cota por UF (Atos da Mesa da Câmara)**.
 
-![Painel de 2025: cartões executivos, tabela de uso da cota por deputado e gráficos por UF, partido, categoria, sanções, glosas e concentração de fornecedores](design/painel.png)
+![Painel de 2026: cartões executivos, tabela de uso da cota por deputado, gráficos por UF, partido, categoria, sanções, glosas e concentração de fornecedores, e a divulgação do mandato caindo na vedação eleitoral](design/painel.png)
 
-<sub>Página de 2025 no GitHub Pages. O rascunho do layout (grade de 12 colunas, 5 faixas, com a pergunta e o número de conferência de cada bloco) está em [`design/rascunho.png`](design/rascunho.png).</sub>
+<sub>Página de 2026 (ano em andamento) no GitHub Pages, com a vedação eleitoral à divulgação no último gráfico; a de 2025 fica em `relatorio_2025.html`. O rascunho do layout (grade de 12 colunas, 5 faixas, com a pergunta e o número de conferência de cada bloco) está em [`design/rascunho.png`](design/rascunho.png).</sub>
 
 ---
 
