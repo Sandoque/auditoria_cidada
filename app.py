@@ -7,8 +7,9 @@ Regra central: este arquivo não calcula nenhum indicador; apenas lê os DataFra
 prontos via painel.ler(), desenha os cartões de painel.cartoes(), a tabela de
 painel.tabela_deputados() e as figuras Plotly em 5 faixas.
 
-Deploy (Streamlit Community Cloud): o auditoria.duckdb não é versionado. Se ele não
-existir, garantir_banco() roda ingestão, transformação e marts a partir de raw/ uma
+Deploy (Streamlit Community Cloud): nem auditoria.duckdb nem os arquivos de raw/
+são versionados no Git. Se o banco não existir, garantir_banco() baixa os dados
+oficiais (quando ausentes em raw/) e roda ingestão, transformação e marts uma
 única vez por servidor; localmente, com o banco já gerado, não faz nada.
 """
 
@@ -51,12 +52,15 @@ _CSS_ALTO_CONTRASTE = """
 """
 
 
-@st.cache_resource(show_spinner="Montando o banco a partir de raw/ (só na primeira visita, 1 a 2 minutos)...")
+@st.cache_resource(show_spinner="Baixando dados oficiais e montando o banco (só na primeira visita, 1 a 3 minutos)...")
 def garantir_banco() -> None:
     if painel.CAMINHO_BANCO.is_file():
         return
     from pipeline import ingestao, marts, transformacao
+    from scripts import baixar_dados_oficiais
 
+    if ingestao.arquivos_faltantes():
+        baixar_dados_oficiais.main()
     ingestao.executar_ingestao()
     transformacao.executar_transformacao()
     marts.executar_marts()
@@ -109,6 +113,7 @@ def renderizar_pagina() -> None:
 
     # Faixa 1: Sete cartões executivos (lidos diretamente de marts.kpis)
     st.markdown(painel.html_cartoes(cartoes), unsafe_allow_html=True)
+    st.caption(painel.NOTA_CEIS)
 
     # Faixa 2: Largura inteira — uso da cota por deputado (só filtra e ordena marts.ranking_deputados)
     st.subheader("Uso da cota por deputado")

@@ -9,6 +9,7 @@ SPEC DO MÓDULO (Fonte da Verdade):
 - U4. Não importa pipeline.ingestao nem pipeline.db.
 """
 
+import logging
 import sys
 import time
 from pathlib import Path
@@ -16,6 +17,7 @@ from pathlib import Path
 import duckdb
 
 CAMINHO_BANCO = Path(__file__).resolve().parent / "auditoria.duckdb"
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -23,12 +25,12 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8")
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     if not CAMINHO_BANCO.is_file():
-        print(
+        logger.error(
             "Erro: o arquivo auditoria.duckdb ainda não existe. "
-            "Rode 'uv run python -m pipeline.ingestao' antes de abrir a interface.",
-            file=sys.stderr,
+            "Rode 'uv run python -m pipeline.ingestao' antes de abrir a interface."
         )
         sys.exit(1)
 
@@ -36,11 +38,11 @@ def main() -> None:
     try:
         con.execute("INSTALL ui; LOAD ui;")
         con.execute("CALL start_ui();")
-        print("DuckDB UI ativa em http://localhost:4213 — pressione Ctrl+C para encerrar.")
+        logger.info("DuckDB UI ativa em http://localhost:4213 — pressione Ctrl+C para encerrar.")
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nEncerrando servidor DuckDB UI e liberando o arquivo auditoria.duckdb.")
+        logger.info("Encerrando servidor DuckDB UI e liberando o arquivo auditoria.duckdb.")
     finally:
         con.close()
 

@@ -40,11 +40,14 @@ SPEC DO MÓDULO (Fonte da Verdade):
      sanções por prazo indeterminado).
 """
 
+import logging
 import sys
 
 import duckdb
 
 from pipeline import db
+
+logger = logging.getLogger(__name__)
 
 TABELAS_ENTRADA: tuple[str, ...] = (
     "despesas_ceap",
@@ -190,11 +193,10 @@ def verificar_tabelas_raw(con: duckdb.DuckDBPyConnection) -> None:
     }
     faltantes = [t for t in TABELAS_ENTRADA if t not in existentes]
     if faltantes:
-        print(
-            "Erro: tabelas obrigatórias não encontradas no schema raw: "
-            + ", ".join(f"raw.{t}" for t in faltantes)
-            + ". Rode 'uv run python -m pipeline.ingestao' antes da transformação.",
-            file=sys.stderr,
+        logger.error(
+            "Erro: tabelas obrigatórias não encontradas no schema raw: %s. "
+            "Rode 'uv run python -m pipeline.ingestao' antes da transformação.",
+            ", ".join(f"raw.{t}" for t in faltantes),
         )
         sys.exit(1)
 
@@ -229,20 +231,18 @@ def verificar_conflito_chave(
     ).fetchall()
     if conflitos:
         chaves_str = ", ".join(f"{r[0]!r} ({r[1]}x)" for r in conflitos)
-        print(
-            f"Erro: chave primária '{coluna_chave}' repetida com conteúdos distintos "
-            f"em refined.{tabela}: {chaves_str}",
-            file=sys.stderr,
+        logger.error(
+            "Erro: chave primária '%s' repetida com conteúdos distintos em refined.%s: %s",
+            coluna_chave,
+            tabela,
+            chaves_str,
         )
         sys.exit(1)
 
 
 def executar_transformacao() -> int:
     """Executa a transformação de raw para refined e devolve o total de linhas gravadas."""
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
-    if hasattr(sys.stderr, "reconfigure"):
-        sys.stderr.reconfigure(encoding="utf-8")
+    db.configurar_logging()
 
     con = db.conectar()
     try:
@@ -258,9 +258,11 @@ def executar_transformacao() -> int:
             try:
                 con.execute(f"CREATE OR REPLACE TABLE refined.{tabela} AS {sql}")
             except duckdb.Error as exc:
-                print(
-                    f"Erro na conversão de tipos ao transformar raw.{tabela} -> refined.{tabela}: {exc}",
-                    file=sys.stderr,
+                logger.error(
+                    "Erro na conversão de tipos ao transformar raw.%s -> refined.%s: %s",
+                    tabela,
+                    tabela,
+                    exc,
                 )
                 sys.exit(1)
 
@@ -274,9 +276,12 @@ def executar_transformacao() -> int:
             total_refined += linhas_saida
 
             nome_qual = f"refined.{tabela}"
-            print(
-                f"✓ {nome_qual:<24} {formatar_milhar(linhas_entrada):>9} → "
-                f"{formatar_milhar(linhas_saida):>9} linhas  ({formatar_milhar(duplicatas)} duplicatas)"
+            logger.info(
+                "✓ %-24s %9s → %9s linhas  (%s duplicatas)",
+                nome_qual,
+                formatar_milhar(linhas_entrada),
+                formatar_milhar(linhas_saida),
+                formatar_milhar(duplicatas),
             )
 
             nulos = contar_nulos_por_coluna(con, "refined", tabela, linhas_saida)
@@ -284,9 +289,9 @@ def executar_transformacao() -> int:
                 resumo_nulos = ", ".join(
                     f"{col} {formatar_milhar(qtd)}" for col, qtd in nulos
                 )
-                print(f"    nulos mantidos: {resumo_nulos}")
+                logger.info("    nulos mantidos: %s", resumo_nulos)
 
-        print(f"  {'total':<24} {formatar_milhar(total_refined):>21} linhas")
+        logger.info("  %-24s %21s linhas", "total", formatar_milhar(total_refined))
         return total_refined
     finally:
         con.close()

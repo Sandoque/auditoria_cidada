@@ -28,11 +28,14 @@ SPEC DO MÓDULO (Fonte da Verdade):
    encerra com sys.exit(1) sem gravar parcialmente.
 """
 
+import logging
 import sys
 
 import pandas as pd
 
 from pipeline import db
+
+logger = logging.getLogger(__name__)
 
 MAPA_ARQUIVOS: tuple[tuple[str, str], ...] = (
     ("despesas_ceap.csv.gz", "despesas_ceap"),
@@ -50,28 +53,26 @@ def formatar_milhar(valor: int) -> str:
     return f"{valor:,}".replace(",", ".")
 
 
-def verificar_arquivos() -> None:
-    """Verifica se todos os arquivos brutos existem antes de tocar no banco."""
-    faltantes = [
+def arquivos_faltantes() -> list[str]:
+    """Devolve a lista de arquivos brutos que ainda não existem em PASTA_RAW."""
+    return [
         arquivo for arquivo, _ in MAPA_ARQUIVOS if not (db.PASTA_RAW / arquivo).is_file()
     ]
+
+
+def verificar_arquivos() -> None:
+    """Verifica se todos os arquivos brutos existem antes de tocar no banco."""
+    faltantes = arquivos_faltantes()
     if faltantes:
-        print(
-            f"Erro: arquivos obrigatórios não encontrados na pasta {db.PASTA_RAW}:",
-            file=sys.stderr,
-        )
+        logger.error("Erro: arquivos obrigatórios não encontrados na pasta %s:", db.PASTA_RAW)
         for arq in faltantes:
-            print(f"  - {arq}", file=sys.stderr)
+            logger.error("  - %s", arq)
         sys.exit(1)
 
 
 def executar_ingestao() -> int:
     """Executa a ingestão completa para o schema raw e devolve o total de linhas gravadas."""
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
-    if hasattr(sys.stderr, "reconfigure"):
-        sys.stderr.reconfigure(encoding="utf-8")
-
+    db.configurar_logging()
     verificar_arquivos()
 
     con = db.conectar()
@@ -92,9 +93,9 @@ def executar_ingestao() -> int:
             contagem = db.gravar(con, df, "raw", tabela)
             total += contagem
             nome_qualificado = f"raw.{tabela}"
-            print(f"✓ {nome_qualificado:<22} {formatar_milhar(contagem):>10} linhas")
+            logger.info("✓ %-22s %10s linhas", nome_qualificado, formatar_milhar(contagem))
 
-        print(f"  {'total':<22} {formatar_milhar(total):>10} linhas")
+        logger.info("  %-22s %10s linhas", "total", formatar_milhar(total))
         return total
     finally:
         con.close()

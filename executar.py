@@ -1,5 +1,6 @@
 """Executor completo do pipeline do zero (saída de emergência / reconstrução total).
 
+Se faltar qualquer arquivo em `raw/`, baixa as fontes oficiais antes de começar.
 Apaga o arquivo auditoria.duckdb se existir e executa em sequência:
 1. pipeline.ingestao      (CSV -> raw)
 2. pipeline.transformacao (raw -> refined)
@@ -8,32 +9,42 @@ Apaga o arquivo auditoria.duckdb se existir e executa em sequência:
 5. relatorio              (geração de relatorio.html)
 """
 
-import sys
+import logging
 
 import relatorio
 from pipeline import db, ingestao, marts, qualidade, transformacao
+from scripts import baixar_dados_oficiais
+
+logger = logging.getLogger(__name__)
+
+
+def garantir_dados_brutos() -> None:
+    """Baixa os arquivos oficiais se a pasta raw/ ainda não estiver completa."""
+    if ingestao.arquivos_faltantes():
+        logger.info("=== 0/5 · Download dos dados brutos oficiais (raw) ===")
+        baixar_dados_oficiais.main()
 
 
 def main() -> None:
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
+    db.configurar_logging()
+    garantir_dados_brutos()
 
     if db.CAMINHO_BANCO.is_file():
         db.CAMINHO_BANCO.unlink()
 
-    print("=== 1/5 · Ingestão (raw) ===")
+    logger.info("=== 1/5 · Ingestão (raw) ===")
     ingestao.executar_ingestao()
 
-    print("\n=== 2/5 · Transformação (refined) ===")
+    logger.info("=== 2/5 · Transformação (refined) ===")
     transformacao.executar_transformacao()
 
-    print("\n=== 3/5 · Marts (SQL) ===")
+    logger.info("=== 3/5 · Marts (SQL) ===")
     marts.executar_marts()
 
-    print("\n=== 4/5 · Qualidade de Dados ===")
+    logger.info("=== 4/5 · Qualidade de Dados ===")
     qualidade.executar_qualidade()
 
-    print("\n=== 5/5 · Relatório Estático (HTML) ===")
+    logger.info("=== 5/5 · Relatório Estático (HTML) ===")
     relatorio.gerar_relatorio()
 
 

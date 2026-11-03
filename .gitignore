@@ -10,3 +10,6 @@ htmlcov/
 # Banco local DuckDB (gerado pelo pipeline)
 *.duckdb
 *.duckdb.wal
+
+# Dados brutos baixados na execução (scripts/baixar_dados_oficiais.py)
+raw/*.csv.gz

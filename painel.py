@@ -280,6 +280,15 @@ NOTA_TETO = (
     " Concentração alta em um fornecedor é um ponto de atenção, não indício de irregularidade."
 )
 
+NOTA_CEIS = (
+    "Ressalva de interpretação (CEIS × CEAP — coincidência não é irregularidade): o cruzamento"
+    " entre CNPJ listado no CEIS e despesa reembolsada na Cota Parlamentar é um indicador de"
+    " triagem para auditoria, não prova de irregularidade. Grande parte das sanções do CEIS"
+    " restringe-se apenas ao próprio órgão sancionador ou à esfera municipal/estadual, e a CEAP"
+    " opera por reembolso de despesas diretas do gabinete (inclusive concessionárias de serviços"
+    " essenciais), exigindo verificação do alcance jurídico de cada anotação."
+)
+
 AVISO_ANO_PARCIAL = (
     "Ano em andamento: a nota pode ser apresentada até 90 dias depois da despesa (art. 4º, § 12,"
     " do Ato da Mesa nº 43/2009), então os meses mais recentes ainda vão crescer e o uso do teto"
@@ -741,7 +750,7 @@ def grafico_fornecedores_ceis(df: pd.DataFrame) -> go.Figure:
     fig = _aplicar_layout_base(
         fig,
         "07 · Pago em sanção vigente (Top 10 · R$)",
-        "Valor pago em sanção vigente do CEIS (R$)",
+        "Valor pago em sanção vigente (R$ · coincidência ≠ irregularidade)",
         "",
         margem_esquerda=165,
         barra_horizontal=True,

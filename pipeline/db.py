@@ -19,7 +19,9 @@ SPEC DO MÓDULO (Fonte da Verdade):
      não deixar objetos temporários no catálogo.
 """
 
+import logging
 import re
+import sys
 from pathlib import Path
 
 import duckdb
@@ -30,6 +32,15 @@ PASTA_RAW = RAIZ_PROJETO / "raw"
 CAMINHO_BANCO = RAIZ_PROJETO / "auditoria.duckdb"
 
 _IDENTIFICADOR_VALIDO = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def configurar_logging() -> None:
+    """Configura o logging padrão em UTF-8 para os módulos de linha de comando."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 def _validar_identificador(nome: str) -> str:

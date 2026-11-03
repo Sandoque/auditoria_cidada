@@ -18,6 +18,7 @@ SPEC DO MÓDULO (Fonte da Verdade):
 """
 
 import html
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,7 @@ import pandas as pd
 import painel
 
 CAMINHO_RELATORIO = Path(__file__).resolve().parent / "relatorio.html"
+logger = logging.getLogger(__name__)
 
 _CSS_TABELA = """
     .deputados h2 { margin: 6px 8px 10px; font-size: 16px; }
@@ -258,6 +260,7 @@ def _html_pagina(
   </header>
 
   {html_cartoes}
+  <p class="nota">{html.escape(painel.NOTA_CEIS)}</p>
 
   <section class="row-full deputados">
     <h2>Uso da cota por deputado</h2>
@@ -303,6 +306,7 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
     """Grava uma página por ano e devolve o caminho da página do ano mais recente."""
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     dados_todos = painel.ler()
     anos = painel.anos(dados_todos)
@@ -315,7 +319,7 @@ def gerar_relatorio(caminho_saida: Path = CAMINHO_RELATORIO) -> Path:
             encoding="utf-8"
         )
         tamanho_kb = caminho.stat().st_size / 1024.0
-        print(f"✓ {caminho} ({tamanho_kb:.1f} KB)")
+        logger.info("✓ %s (%.1f KB)", caminho, tamanho_kb)
     return caminho_saida
 
 

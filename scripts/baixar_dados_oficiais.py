@@ -15,6 +15,7 @@ em UTF-8 sem alterar nenhum valor, linha ou nome de coluna original.
 import gzip
 import io
 import json
+import logging
 import sys
 import time
 import urllib.error
@@ -26,8 +27,7 @@ from pathlib import Path
 
 import pandas as pd
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
+logger = logging.getLogger(__name__)
 
 RAIZ = Path(__file__).resolve().parent.parent
 PASTA_RAW = RAIZ / "raw"
@@ -117,7 +117,7 @@ def ler_csv_do_zip(conteudo: bytes, encoding: str) -> pd.DataFrame:
 
 def gravar_raw(df: pd.DataFrame, arquivo: str) -> None:
     df.replace("", None).to_csv(PASTA_RAW / arquivo, index=False, encoding="utf-8", compression="gzip")
-    print(f"  ✓ {arquivo}: {len(df):,} linhas")
+    logger.info("  ✓ %s: %s linhas", arquivo, f"{len(df):,}")
 
 
 def baixar_historico(deputado_id: str) -> list[dict]:
@@ -126,13 +126,17 @@ def baixar_historico(deputado_id: str) -> list[dict]:
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
     PASTA_RAW.mkdir(parents=True, exist_ok=True)
     ano_corrente = datetime.now(FUSO_BRASILIA).year
 
     # 1. CEAP de ANO_INICIAL até o ano corrente - Câmara dos Deputados
     partes = []
     for ano in range(ANO_INICIAL, ano_corrente + 1):
-        print(f"Baixando CEAP {ano} (Câmara dos Deputados)...")
+        logger.info("Baixando CEAP %d (Câmara dos Deputados)...", ano)
         partes.append(ler_csv_do_zip(baixar_bytes(f"https://www.camara.leg.br/cotas/Ano-{ano}.csv.zip"), "utf-8-sig"))
     if any(list(p.columns) != list(partes[0].columns) for p in partes):
         raise RuntimeError("Os arquivos anuais da CEAP vieram com colunas diferentes entre si")
@@ -140,7 +144,7 @@ def main() -> None:
     gravar_raw(df_ceap, "despesas_ceap.csv.gz")
 
     # 2. Deputados - Câmara dos Deputados
-    print("Baixando cadastro de Deputados (Câmara dos Deputados)...")
+    logger.info("Baixando cadastro de Deputados (Câmara dos Deputados)...")
     dep_bytes = baixar_bytes("https://dadosabertos.camara.leg.br/arquivos/deputados/csv/deputados.csv")
     df_dep = pd.read_csv(io.BytesIO(dep_bytes), sep=";", encoding="utf-8-sig", dtype=str, keep_default_na=False)
     gravar_raw(df_dep, "deputados.csv.gz")
@@ -148,11 +152,11 @@ def main() -> None:
     # 3 e 4. CEIS e CNEP - Portal da Transparência CGU
     for cadastro in ("ceis", "cnep"):
         conteudo, data = baixar_zip_cgu(cadastro)
-        print(f"Baixando {cadastro.upper()} de {data} (Portal da Transparência CGU)...")
+        logger.info("Baixando %s de %s (Portal da Transparência CGU)...", cadastro.upper(), data)
         gravar_raw(ler_csv_do_zip(conteudo, "cp1252"), f"sancoes_{cadastro}.csv.gz")
 
     # 5. Estados IBGE (cadastro das UFs)
-    print("Baixando Estados (API IBGE)...")
+    logger.info("Baixando Estados (API IBGE)...")
     uf_bytes = baixar_bytes("https://servicodados.ibge.gov.br/api/v1/localidades/estados")
     if uf_bytes[:2] == b"\x1f\x8b":
         uf_bytes = gzip.decompress(uf_bytes)
@@ -171,7 +175,7 @@ def main() -> None:
     gravar_raw(df_uf, "cotas_uf.csv.gz")
 
     # 6. Limites mensais da cota por UF e vigência (atos da Mesa)
-    print("Gravando limites da cota por UF e vigência (Atos da Mesa n. 270/2023 e 244/2026)...")
+    logger.info("Gravando limites da cota por UF e vigência (Atos da Mesa n. 270/2023 e 244/2026)...")
     df_limites = pd.DataFrame(
         [
             {"sigla_uf": uf, "vigencia_inicio": inicio, "limite_mensal_cota": valor, "ato_da_mesa": ato}
@@ -184,7 +188,7 @@ def main() -> None:
 
     # 7. Histórico de mandatos de cada deputado com despesa na CEAP - API da Câmara
     ids = sorted(df_ceap["ideCadastro"].replace("", None).dropna().unique(), key=int)
-    print(f"Baixando histórico de mandato de {len(ids)} deputados (API da Câmara)...")
+    logger.info("Baixando histórico de mandato de %d deputados (API da Câmara)...", len(ids))
     with ThreadPoolExecutor(max_workers=4) as executor:
         eventos = [evento for lista in executor.map(baixar_historico, ids) for evento in lista]
     df_hist = pd.DataFrame(eventos, dtype=object).map(lambda v: None if v is None else str(v))
