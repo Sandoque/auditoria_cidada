@@ -39,7 +39,7 @@ Todos os conjuntos de dados são públicos, oficiais e abertos sob a **Lei de Ac
 | `historico_deputados.csv.gz` | Câmara dos Deputados — API de Dados Abertos (histórico de mandato de cada deputado com despesa) | `https://dadosabertos.camara.leg.br/api/v2/deputados/{id}/historico` | 6.353 |
 | **Total em `raw`** | | | **330.537** |
 
-> Os sete arquivos `.csv.gz` estão versionados em `raw/` (~14 MB, retrato de 29/10/2026) para execução imediata e offline; os números de conferência das seções 2 a 4 são os do ano de 2025 desse retrato. Para baixar de novo direto dos portais governamentais, execute `uv run python scripts/baixar_dados_oficiais.py`. O GitHub Pages pode ser republicado com dados novos pelo workflow sob demanda (seção 5).
+> Os sete arquivos `.csv.gz` não são versionados no Git (`raw/*.csv.gz` no `.gitignore`): eles são baixados na execução via `uv run python scripts/baixar_dados_oficiais.py` (ou automaticamente por `executar.py` e `app.py` quando `raw/` está vazia). Os números de conferência das seções 2 a 4 referem-se ao ano de 2025 (retrato de 29/10/2026). O GitHub Pages pode ser republicado com dados novos pelo workflow sob demanda (seção 5).
 
 ---
 
